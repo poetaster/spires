@@ -1,12 +1,9 @@
 /*
-  This example shows how to set up and read multiple VL53L1X sensors connected to
-  the same I2C bus. Each sensor needs to have its XSHUT pin connected to a
-  different Arduino pin, and you should change sensorCount and the xshutPins array
-  below to match your setup.
+  Spires is copyright 2024, Mark Washeim blueprint@poetaster.de
+  GPLv3
 
-  For more information, see ST's application note AN4846 ("Using multiple VL53L0X
-  in a single design"). The principles described there apply to the VL53L1X as
-  well.
+  
+
 */
 #include <SPI.h>
 #include <Wire.h>
