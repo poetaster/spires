@@ -127,17 +127,19 @@ const uint8_t sensorCount = 2;
 // The Arduino pin connected to the XSHUT pin of each sensor.
 const uint8_t xshutPins[sensorCount] = { 6, 7 };
 
+int led = 10; // for the vactrol
+//  analogReference(DEFAULT);  // 5v
 VL53L0X sensors[sensorCount];
 
 void setup()
 {
-  // setup dac on pin D4 to 5v
-  analogReference(DEFAULT);
-  pinMode(4, ANALOG);
-
-  analogWrite(4, 255);
-  
+  // setup led for audio volume
+  //analogReference(DEFAULT);  // 5v
+  pinMode(led, OUTPUT);
+  analogReference(INTERNAL2V56);
+  pinMode(DAC0, ANALOG);
   // from audio
+
   // Define pins function
   //pinMode(GEN_FSYNC1, OUTPUT);                      // GEN_FSYNC1
   //pinMode(GEN_FSYNC2, OUTPUT);                      // GEN_FSYNC2
@@ -211,15 +213,24 @@ void setup()
     // the default of 0x29 (except for the last one, which could be left atSerial.println(freq_init1);
     // the default). To make it simple, we'll just count up from 0x2A.
     sensors[i].setAddress(0x2A + i);
-
+    
     sensors[i].startContinuous(50);
-    sensors[i].setMeasurementTimingBudget(20000);
+    sensors[i].setMeasurementTimingBudget(80000);
+
   }
 
+
+
+   //sensors[1].setSignalRateLimit(0.1);
+  // increase laser pulse periods (defaults are 14 and 10 PCLKs)
+   // sensors[1].setVcselPulsePeriod(VL53L0X::VcselPeriodPreRange, 18);
+    //sensors[1].setVcselPulsePeriod(VL53L0X::VcselPeriodFinalRange, 14);
+    //sensors[1].setMeasurementTimingBudget(500000);
 
 }
 bool up;
 bool cont = true;
+float lastvol = 150;
 
 void loop()
 {
@@ -232,16 +243,20 @@ void loop()
   float temp1;
   float temp2;
 
-  freq_target1 = sensors[0].readRangeContinuousMillimeters(); //freq_init1;
-  //Serial.println(freq_target1);
+  //freq_target1 = sensors[0].readRangeContinuousMillimeters(); //freq_init1;
+
+  volume = map(sensors[1].readRangeSingleMillimeters(), 110, 1400, 0, 255);
+  if (volume > 255 ) {
+    volume = 255;
+  }
+  analogWrite(led, int(volume));
+  
+  Serial.println(volume);
   //Serial.println();
 
-  volume = map(sensors[1].readRangeContinuousMillimeters(), 50, 1000, 25, 255);
-  analogWrite(4, volume);
-  
-  freq_target2 = pgm_read_float(&nikrizToFreq[map(sensors[0].readRangeContinuousMillimeters(), 10, 1300, 0, 31)]) ; // freq_init2;
+  //freq_target2 = pgm_read_float(&IndexToFreq[map(sensors[0].readRangeContinuousMillimeters(), 10, 1300, 0, 31)]) ; // freq_init2;
 
-  temp1 = pgm_read_float(&nikrizToFreq[map(sensors[0].readRangeContinuousMillimeters(), 10, 1300, 31, 0) ]);
+  temp1 = pgm_read_float(&IndexToFreq[map(sensors[0].readRangeContinuousMillimeters(), 10, 1300, 31, 0) ]);
 
   //Serial.println(temp1);
   temp2 = freq_target2;
@@ -277,10 +292,11 @@ bool GlideFreq(float from, float too, bool up) {
   //make sure we complete the glides before the loop proceeds
   cont = false;
   
+  
   if (up) {
     while (from < too) {
       AD[0].setFrequency(from);
-      AD[1].setFrequency(from-1);
+      AD[1].setFrequency(from*2);
       from = from + 0.3;
 
     }
@@ -290,13 +306,13 @@ bool GlideFreq(float from, float too, bool up) {
   } else {
     while (from > too) {
       AD[0].setFrequency(from);
-      AD[1].setFrequency(from-1);
+      AD[1].setFrequency(from*2);
       from = from - 0.3;
 
     }
     // complete since while may exit early
     AD[0].setFrequency(too);
-    AD[1].setFrequency(from-1);
+    AD[1].setFrequency(from*2);
   }
   return true;
 }
