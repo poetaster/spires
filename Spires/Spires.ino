@@ -249,9 +249,9 @@ void loop()
   if (volume > 255 ) {
     volume = 255;
   }
-  analogWrite(led, int(volume));
+  //analogWrite(10, int(volume));
   
-  Serial.println(volume);
+  //Serial.println(volume);
   //Serial.println();
 
   //freq_target2 = pgm_read_float(&IndexToFreq[map(sensors[0].readRangeContinuousMillimeters(), 10, 1300, 0, 31)]) ; // freq_init2;
