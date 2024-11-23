@@ -29,13 +29,13 @@ int enc_delta; // which direction
 int prog = 1;
 int bank = 1;
 int pb1 = 1;
-int pb1total = 5;
+int pb1total = 8;
 int pb2 = 1;
 int pb2total = 28;
 int pb3 = 1;
 int pb3total = 20;
 
-int numProg = 5;
+int numProg = 8;
 
 #include "encoder.h"
 
@@ -222,7 +222,7 @@ void loop()
   eb1.update(); // respond to encoder/button
 
   float temp1;
-  float temp2;
+  int temp2;
 
   //freq_target1 = sensors[0].readRangeContinuousMillimeters(); //freq_init1;
 
@@ -241,28 +241,37 @@ void loop()
   //freq_target2 = pgm_read_float(&IndexToFreq[map(sensors[0].readRangeContinuousMillimeters(), 10, 1300, 0, 31)]) ; // freq_init2;
   //Serial.println(temp1);
   //temp2 = freq_target2;
-
+  temp2 = int(map(sensors[1].readRangeContinuousMillimeters(), 0, 1300, 31, 0));
   switch (prog) {
     case 1:
-      temp1 = pgm_read_float( &IndexToFreq[map(sensors[1].readRangeContinuousMillimeters(), 10, 1300, 31, 0) ]);
+      temp1 = pgm_read_float( &IndexToFreq[temp2 ]);
       break;
     case 2:
-      temp1 = pgm_read_float( &BayatiToFreq[map(sensors[1].readRangeContinuousMillimeters(), 10, 1300, 31, 0) ]);
+      temp1 = pgm_read_float( &BayatiToFreq[temp2 ]);
       break;
     case 3:
-      temp1 = pgm_read_float( &nawaAtharToFreq[map(sensors[1].readRangeContinuousMillimeters(), 10, 1300, 31, 0) ]);
+      temp1 = pgm_read_float( &nawaAtharToFreq[temp2]);
       break;
     case 4:
-      temp1 = pgm_read_float( &farafahzaToFreq[map(sensors[1].readRangeContinuousMillimeters(), 10, 1300, 31, 0) ]);
+      temp1 = pgm_read_float( &farafahzaToFreq[temp2 ]);
       break;
     case 5:
-      temp1 = pgm_read_float( &nikrizToFreq[map(sensors[1].readRangeContinuousMillimeters(), 10, 1300, 31, 0) ]);
+      temp1 = pgm_read_float( &nikrizToFreq[temp2 ]);
+      break;
+    case 6:
+      temp1 = pgm_read_float( &phrygianToFreq[temp2 ]);
+      break;
+    case 7:
+      temp1 = pgm_read_float( &romaMinorToFreq[temp2 ]);
+      break;
+     case 8:
+      temp1 = pgm_read_float( &partch1ToFreq[temp2 ]);
       break;
   }
 
 
   // here we either glide up or down
-  if ( temp1 < 1000  && temp1 > 50) {
+  if ( temp1 < 1000  && temp1 > 30) {
     if (freq_init1 > temp1) {
       cont = GlideFreq(freq_init1, temp1, false);
 
