@@ -41,7 +41,12 @@ int numProg = 8;
 
 
 /* AUDIO */
-
+const float ContToFreq[63] PROGMEM = {29.14, 30.87, 32.70, 34.65, 36.71, 38.89, 41.20, 43.65, 46.25, 49.00, 51.91, 55.00, 
+                                     58.27, 61.74, 65.41, 69.30, 73.42, 77.78, 82.41, 87.31, 92.50, 98.00, 103.83, 110.00, 
+                                     116.54, 123.47, 130.81, 138.59, 146.83, 155.56, 164.81, 174.61, 185.00, 196.00, 207.65, 220.00,
+                                     233.08, 246.94, 261.63, 277.18, 293.66, 311.13, 329.63, 349.23, 369.99, 392.00, 415.30, 440.00, 
+                                     466.16, 493.88, 523.25, 554.37, 587.33, 622.25, 659.25, 698.46, 739.99, 783.99, 830.61, 880.00,
+                                     932.33, 987.77, 1046.50};
 //  each device needs its own select pin.
 AD9833 AD[2] =
 {
@@ -63,7 +68,7 @@ float freq_init1 = 440.0;                    // Initial frequency for Generator 
 float freq_init2 = 442.0;                    // Initial frequency for Generator 2
 float freq_target1 = 440.0;                 // Target frequency for Generator 1
 float freq_target2 = 442.0;                 // Target frequency for Generator 2
-float freq_offset = 2.0;
+float freq_offset = 1; //4 / 3;
 
 float volume = 255;  // volume for our machine
 
@@ -121,9 +126,9 @@ void setup()
   AD[1].begin();
   //  A major chord
   AD[0].setWave(AD9833_TRIANGLE);
-  AD[1].setWave(AD9833_TRIANGLE);
+  AD[1].setWave(AD9833_SINE);
   AD[0].setFrequency(440.00, 0);     //  A
-  AD[1].setFrequency(554.37, 0);     //  C#
+  AD[1].setFrequency(442.00, 0);     //  C#
 
   /* syntherjack, for reference
     Set both AD9833 CS pins to high (don't accept data)
@@ -185,7 +190,7 @@ void setup()
     sensors[i].setAddress(0x2A + i);
 
     sensors[i].startContinuous(50);
-    sensors[i].setMeasurementTimingBudget(80000); //  adjust this value to move to slower note slurs/jumps
+    sensors[i].setMeasurementTimingBudget(70000); //  adjust this value to move to slower note slurs/jumps
 
   }
 
@@ -207,6 +212,7 @@ void setup()
 bool up;
 bool cont = true;
 float lastvol = 150;
+bool continuous = false;
 
 void loop()
 {
@@ -241,7 +247,21 @@ void loop()
   //freq_target2 = pgm_read_float(&IndexToFreq[map(sensors[0].readRangeContinuousMillimeters(), 10, 1300, 0, 31)]) ; // freq_init2;
   //Serial.println(temp1);
   //temp2 = freq_target2;
-  temp2 = int(map(sensors[1].readRangeContinuousMillimeters(), 0, 1300, 31, 0));
+  //temp2 = int(map(sensors[1].readRangeContinuousMillimeters(), 0, 1300, 31, 0));
+  freq_target2 = sensors[1].readRangeContinuousMillimeters();
+  if (freq_target2  < 1200 ) {
+    if ( ! continuous ) {
+      //AD[0].setWave(AD9833_TRIANGLE);
+     temp2 = int(map(freq_target2, 0, 1300, 31, 0));
+    } else {
+      //AD[0].setWave(AD9833_SINE);
+      temp2 = map(freq_target2, 0, 1300, 780, 420);
+      //temp2 = map(freq_target2, 10, 1300, 58, 18);
+      //temp2 = pgm_read_float( &ContToFreq[temp2 ]);
+    }
+    if (debug )  Serial.println(temp2);   
+  }
+  
   switch (prog) {
     case 1:
       temp1 = pgm_read_float( &IndexToFreq[temp2 ]);
@@ -264,14 +284,14 @@ void loop()
     case 7:
       temp1 = pgm_read_float( &romaMinorToFreq[temp2 ]);
       break;
-     case 8:
+    case 8:
       temp1 = pgm_read_float( &partch1ToFreq[temp2 ]);
       break;
   }
 
 
   // here we either glide up or down
-  if ( temp1 < 1000  && temp1 > 30) {
+  if ( temp1 < 1000  && temp1 > 50 && continuous == false) {
     if (freq_init1 > temp1) {
       cont = GlideFreq(freq_init1, temp1, false);
 
@@ -279,6 +299,14 @@ void loop()
       cont = GlideFreq(freq_init1, temp1, true);
     }
     freq_init1 = temp1;
+  } else if (temp2 < 800  && temp2 > 100 && continuous == true ) { //&& abs(freq_init1 - temp2) > 5 ) {
+      if (freq_init1 > temp2) {
+      cont = GlideContinuous(freq_init1, temp2, false);
+
+      } else if (freq_init1 < temp2) {
+      cont = GlideContinuous(freq_init1, temp2, true);
+      }
+    freq_init1 = temp2;
   }
   while (cont == false) {
     ; //nop
@@ -301,6 +329,7 @@ bool GlideFreq(float from, float too, bool up) {
     }
     // complete since while may exit early
     AD[0].setFrequency(too);
+    AD[1].setFrequency(too * freq_offset);
 
   } else {
     while (from > too) {
@@ -311,7 +340,35 @@ bool GlideFreq(float from, float too, bool up) {
     }
     // complete since while may exit early
     AD[0].setFrequency(too);
-    AD[1].setFrequency(from * freq_offset);
+    AD[1].setFrequency(too * freq_offset);
+  }
+  return true;
+}
+// Function to glide notes up/down
+bool GlideContinuous(float from, float too, bool up) {
+  //make sure we complete the glides before the loop proceeds
+  cont = false;
+  if (up) {
+    while (from < too) {
+      AD[0].setFrequency(from);
+      AD[1].setFrequency(from * freq_offset);
+      from = from + 0.1;
+
+    }
+    // complete since while may exit early
+    AD[0].setFrequency(too);
+    AD[1].setFrequency(too * freq_offset);
+
+  } else {
+    while (from > too) {
+      AD[0].setFrequency(from);
+      AD[1].setFrequency(from * freq_offset);
+      from = from - 0.1;
+
+    }
+    // complete since while may exit early
+    AD[0].setFrequency(too);
+    AD[1].setFrequency(too * freq_offset);
   }
   return true;
 }
