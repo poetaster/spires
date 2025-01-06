@@ -11,10 +11,16 @@
 #include <math.h>
 #include <util/crc16.h>
 #include "AD9833.h"
+//#include "M62429.h"
+
+//M62429  AMP;
+//uint8_t attn = 0;
+
+
 
 #include <EncoderButton.h>
 
-bool debug = false;
+bool debug = true;
 // encoder
 // the a and b + the button pin large encoders are 6,5,4
 EncoderButton eb1(2, 3, 5);
@@ -98,7 +104,7 @@ float noteIndex;
 const uint8_t sensorCount = 2;
 
 // The Arduino pin connected to the XSHUT pin of each sensor.
-const uint8_t xshutPins[sensorCount] = { 6, 7 };
+const uint8_t xshutPins[sensorCount] = {6,7};
 
 int led = 10; // for the vactrol
 //  analogReference(DEFAULT);  // 5v
@@ -110,9 +116,9 @@ void setup()
 
   // setup led for audio volume
   //analogReference(DEFAULT);  // 5v
-  pinMode(led, OUTPUT);
-  analogReference(DEFAULT);
-  pinMode(4, ANALOG);
+  //pinMode(led, OUTPUT);
+  //analogReference(DEFAULT);
+  //pinMode(4, ANALOG);
   // from audio
 
   // Define pins function
@@ -121,14 +127,28 @@ void setup()
 
   SPI.begin();
   delay(50);
+  
+  //while (!Serial) {}
+  Serial.begin(115200);
+  Wire.begin();
+  Wire.setClock(400000); // use 400 kHz I2C
 
+  Serial.println(__FILE__);
+  Serial.print("AD9833_LIB_VERSION: ");
+  Serial.println(AD9833_LIB_VERSION);
+  Serial.println();
+  
+  // start amp first
+  //AMP.begin(10, 14); 
+  //Serial.println(AMP.getVolume(2));
+  
   AD[0].begin();
   AD[1].begin();
   //  A major chord
   AD[0].setWave(AD9833_TRIANGLE);
   AD[1].setWave(AD9833_SINE);
-  AD[0].setFrequency(440.00, 0);     //  A
-  AD[1].setFrequency(442.00, 0);     //  C#
+  AD[0].setFrequency(240.00, 0);     //  A
+  AD[1].setFrequency(242.00, 0);     //  C#
 
   /* syntherjack, for reference
     Set both AD9833 CS pins to high (don't accept data)
@@ -150,15 +170,7 @@ void setup()
 
   // END from audio
 
-  while (!Serial) {}
-  Serial.begin(115200);
-  Wire.begin();
-  Wire.setClock(400000); // use 400 kHz I2C
 
-  Serial.println(__FILE__);
-  Serial.print("AD9833_LIB_VERSION: ");
-  Serial.println(AD9833_LIB_VERSION);
-  Serial.println();
 
   // Disable/reset all sensors by driving their XSHUT pins low.
   for (uint8_t i = 0; i < sensorCount; i++)
@@ -207,11 +219,11 @@ void setup()
   // sensors[1].setVcselPulsePeriod(VL53L0X::VcselPeriodPreRange, 18);
   //sensors[1].setVcselPulsePeriod(VL53L0X::VcselPeriodFinalRange, 14);
   //sensors[1].setMeasurementTimingBudget(500000);
-
+  Serial.println(sensors[0].readRangeSingleMillimeters());
 }
 bool up;
 bool cont = true;
-float lastvol = 150;
+int lastvol = 255;
 bool continuous = false;
 
 void loop()
@@ -232,14 +244,23 @@ void loop()
 
   //freq_target1 = sensors[0].readRangeContinuousMillimeters(); //freq_init1;
 
-  volume = map(sensors[0].readRangeSingleMillimeters(), 100, 1000, 255, 0);
-  if (volume > 255 ) {
+  volume = map(sensors[0].readRangeSingleMillimeters(), 100, 1000, 10, 255);
+    if (volume > 255 ) {
     volume = 255;
-  } else if (volume < 0) {
-    volume = 0;
+  } else if (volume < 10) {
+    volume = 10;
   }
+  if (volume != lastvol) {
+    analogWrite(led, volume);
+    lastvol = volume;
+    //AMP.setVolume(0, volume);
+    //AMP.setVolume(1, volume);
+    //if (debug )  Serial.println(AMP.getVolume(0));
+  }
+   
+  
   //analogWrite(led, volume);
-  analogWrite(4, volume); // D4 is the dac on the LGT8F
+  //analogWrite(4, volume); // D4 is the dac on the LGT8F
   //Serial.println(volume);
 
 
@@ -249,17 +270,17 @@ void loop()
   //temp2 = freq_target2;
   //temp2 = int(map(sensors[1].readRangeContinuousMillimeters(), 0, 1300, 31, 0));
   freq_target2 = sensors[1].readRangeContinuousMillimeters();
-  if (freq_target2  < 1200 ) {
+  if (freq_target2  < 1300 ) {
     if ( ! continuous ) {
       //AD[0].setWave(AD9833_TRIANGLE);
-     temp2 = int(map(freq_target2, 0, 1300, 31, 0));
+     temp2 = int(map(freq_target2, 0, 1300, 28, 0));
     } else {
       //AD[0].setWave(AD9833_SINE);
       temp2 = map(freq_target2, 0, 1300, 780, 420);
       //temp2 = map(freq_target2, 10, 1300, 58, 18);
       //temp2 = pgm_read_float( &ContToFreq[temp2 ]);
     }
-    if (debug )  Serial.println(temp2);   
+    //if (debug )  Serial.println(temp2);   
   }
   
   switch (prog) {
@@ -291,7 +312,7 @@ void loop()
 
 
   // here we either glide up or down
-  if ( temp1 < 1000  && temp1 > 50 && continuous == false) {
+  if ( temp1 < 1600  && temp1 > 30 && continuous == false) {
     if (freq_init1 > temp1) {
       cont = GlideFreq(freq_init1, temp1, false);
 
