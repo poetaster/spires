@@ -11,15 +11,10 @@
 #include <math.h>
 #include <util/crc16.h>
 #include "AD9833.h"
-//#include "M62429.h"
-
-//M62429  AMP;
-//uint8_t attn = 0;
-
-
-
+#include "MCP4725.h"
 #include <EncoderButton.h>
 
+MCP4725 MCP(0x60);
 bool debug = true;
 // encoder
 // the a and b + the button pin large encoders are 6,5,4
@@ -47,17 +42,18 @@ int numProg = 8;
 
 
 /* AUDIO */
-const float ContToFreq[63] PROGMEM = {29.14, 30.87, 32.70, 34.65, 36.71, 38.89, 41.20, 43.65, 46.25, 49.00, 51.91, 55.00, 
-                                     58.27, 61.74, 65.41, 69.30, 73.42, 77.78, 82.41, 87.31, 92.50, 98.00, 103.83, 110.00, 
-                                     116.54, 123.47, 130.81, 138.59, 146.83, 155.56, 164.81, 174.61, 185.00, 196.00, 207.65, 220.00,
-                                     233.08, 246.94, 261.63, 277.18, 293.66, 311.13, 329.63, 349.23, 369.99, 392.00, 415.30, 440.00, 
-                                     466.16, 493.88, 523.25, 554.37, 587.33, 622.25, 659.25, 698.46, 739.99, 783.99, 830.61, 880.00,
-                                     932.33, 987.77, 1046.50};
+const float ContToFreq[63] PROGMEM = {29.14, 30.87, 32.70, 34.65, 36.71, 38.89, 41.20, 43.65, 46.25, 49.00, 51.91, 55.00,
+                                      58.27, 61.74, 65.41, 69.30, 73.42, 77.78, 82.41, 87.31, 92.50, 98.00, 103.83, 110.00,
+                                      116.54, 123.47, 130.81, 138.59, 146.83, 155.56, 164.81, 174.61, 185.00, 196.00, 207.65, 220.00,
+                                      233.08, 246.94, 261.63, 277.18, 293.66, 311.13, 329.63, 349.23, 369.99, 392.00, 415.30, 440.00,
+                                      466.16, 493.88, 523.25, 554.37, 587.33, 622.25, 659.25, 698.46, 739.99, 783.99, 830.61, 880.00,
+                                      932.33, 987.77, 1046.50
+                                     };
 //  each device needs its own select pin.
-AD9833 AD[2] =
+AD9833 AD[1] =
 {
   AD9833(8),
-  AD9833(9)
+  //AD9833(9)
 };  //  4 devices.
 
 // AD9833 communication pins
@@ -104,11 +100,19 @@ float noteIndex;
 const uint8_t sensorCount = 2;
 
 // The Arduino pin connected to the XSHUT pin of each sensor.
-const uint8_t xshutPins[sensorCount] = {6,7};
+const uint8_t xshutPins[sensorCount] = {6, 7};
 
-int led = 10; // for the vactrol
+int led = 9; // for the vactrol
 //  analogReference(DEFAULT);  // 5v
+
 VL53L0X sensors[sensorCount];
+
+// variables for runtime control
+bool up;
+bool cont = true;
+volatile float lastvol = 255;
+bool continuous = false;
+float lastVol = 4095.0;
 
 void setup()
 {
@@ -118,6 +122,7 @@ void setup()
   //analogReference(DEFAULT);  // 5v
   //pinMode(led, OUTPUT);
   //analogReference(DEFAULT);
+  //analogReference(INTERNAL2V56);
   //pinMode(4, ANALOG);
   // from audio
 
@@ -127,47 +132,39 @@ void setup()
 
   SPI.begin();
   delay(50);
-  
+
   //while (!Serial) {}
   Serial.begin(115200);
   Wire.begin();
   Wire.setClock(400000); // use 400 kHz I2C
 
-  Serial.println(__FILE__);
-  Serial.print("AD9833_LIB_VERSION: ");
-  Serial.println(AD9833_LIB_VERSION);
-  Serial.println();
-  
+  MCP.begin();
+  //  calibrate max voltage
+  MCP.setMaxVoltage(5.1);
+
+  if (debug) {
+    Serial.print("\nVoltage:\t");
+    Serial.println(MCP.getVoltage());
+    Serial.println();
+
+
+    Serial.println(__FILE__);
+    Serial.print("AD9833_LIB_VERSION: ");
+    Serial.println(AD9833_LIB_VERSION);
+    Serial.println();
+  }
+
   // start amp first
-  //AMP.begin(10, 14); 
+  //AMP.begin(10, 14);
   //Serial.println(AMP.getVolume(2));
-  
+
   AD[0].begin();
-  AD[1].begin();
+  //AD[1].begin();
   //  A major chord
   AD[0].setWave(AD9833_TRIANGLE);
-  AD[1].setWave(AD9833_SINE);
+  //AD[1].setWave(AD9833_SINE);
   AD[0].setFrequency(240.00, 0);     //  A
-  AD[1].setFrequency(242.00, 0);     //  C#
-
-  /* syntherjack, for reference
-    Set both AD9833 CS pins to high (don't accept data)
-    digitalWrite(GEN_FSYNC1, HIGH);
-    digitalWrite(GEN_FSYNC2, HIGH);
-    AD9833reset(GEN_FSYNC1);                                   // Reset AD9833 module after power-up.
-    delay(50);
-    AD9833init(freq_init1, SQUARE, GEN_FSYNC1);                  // Set the frequency and Sine Wave output
-
-    AD9833reset(GEN_FSYNC2);                                   // Reset AD9833 module after power-up.
-    delay(50);
-    AD9833init(freq_init2, SQUARE, GEN_FSYNC2);                  // Set the frequency and Sine Wave output
-  */
-  //can be also readed from eeprom
-  freq_target1 = freq_init1;
-  freq_target2 = freq_init2;
-
-  //noteIndex = FreqToNote(freq_target1);
-
+  //AD[1].setFrequency(242.00, 0);     //  C#
   // END from audio
 
 
@@ -202,7 +199,7 @@ void setup()
     sensors[i].setAddress(0x2A + i);
 
     sensors[i].startContinuous(50);
-    sensors[i].setMeasurementTimingBudget(50000); //  adjust this value to move to slower note slurs/jumps
+    //sensors[i].setMeasurementTimingBudget(70000); //  adjust this value to move to slower note slurs/jumps
 
   }
 
@@ -218,47 +215,40 @@ void setup()
   // increase laser pulse periods (defaults are 14 and 10 PCLKs)
   // sensors[1].setVcselPulsePeriod(VL53L0X::VcselPeriodPreRange, 18);
   //sensors[1].setVcselPulsePeriod(VL53L0X::VcselPeriodFinalRange, 14);
-  //sensors[1].setMeasurementTimingBudget(500000);
-  Serial.println(sensors[0].readRangeSingleMillimeters());
+  //
+  sensors[0].setMeasurementTimingBudget(20000);
+  sensors[1].setMeasurementTimingBudget(70000);
+  //Serial.println(sensors[0].readRangeSingleMillimeters());
+  //analogWrite(4, 255);
 }
-bool up;
-bool cont = true;
-int lastvol = 255;
-bool continuous = false;
 
+int steps = 4;
 void loop()
 {
-  /* test sensors
-     for (uint8_t i = 0; i < sensorCount; i++)
-    {
-    Serial.print(sensors[i].readRangeContinuousMillimeters()*0.2);
-    if (sensors[i].timeoutOccurred()) { Serial.print(" TIMEOUT"); }
-    Serial.print('\t');
-    }
-  */
-
-  eb1.update(); // respond to encoder/button
 
   float temp1;
   int temp2;
+  int voltemp;
 
-  //freq_target1 = sensors[0].readRangeContinuousMillimeters(); //freq_init1;
-
-  volume = map(sensors[0].readRangeContinuousMillimeters(), 100, 1000, 10, 255);
-    if (volume > 255 ) {
-    volume = 255;
-  } else if (volume < 10) {
-    volume = 10;
+  if (sensors[0].timeoutOccurred()) {
+    Serial.print(" TIMEOUT");
   }
+
+  volume = sensors[0].readRangeSingleMillimeters();
+  volume = map(volume, 150, 1200, 2048, 4095);
+  if (volume > 4095) volume = 4095;
+  if (volume < 2048 ) volume = 2048;
+
+  // alwasy adjust volume as fast as possible and don't continue loop until it's finished.
+
+
+  cont = GlideVolume( volume, lastvol );
+  lastvol = volume;
   if (volume != lastvol) {
-    analogWrite(led, volume);
-    lastvol = volume;
-    //AMP.setVolume(0, volume);
-    //AMP.setVolume(1, volume);
-    if (debug )  Serial.println(volume);//AMP.getVolume(0));
+    if (debug )  Serial.println(volume);
   }
-   
-  
+
+
   //analogWrite(led, volume);
   //analogWrite(4, volume); // D4 is the dac on the LGT8F
   //Serial.println(volume);
@@ -269,20 +259,21 @@ void loop()
   //Serial.println(temp1);
   //temp2 = freq_target2;
   //temp2 = int(map(sensors[1].readRangeContinuousMillimeters(), 0, 1300, 31, 0));
-  freq_target2 = sensors[1].readRangeContinuousMillimeters();
+  freq_target2 = sensors[1].readRangeSingleMillimeters();
   if (freq_target2  < 1300 ) {
     if ( ! continuous ) {
       //AD[0].setWave(AD9833_TRIANGLE);
-     temp2 = int(map(freq_target2, 0, 1300, 28, 0));
+      temp2 = int(map(freq_target2, 0, 1300, 28, 0));
     } else {
       //AD[0].setWave(AD9833_SINE);
       temp2 = map(freq_target2, 0, 1300, 780, 420);
       //temp2 = map(freq_target2, 10, 1300, 58, 18);
       //temp2 = pgm_read_float( &ContToFreq[temp2 ]);
     }
-    if (debug )  Serial.println(temp2);   
+    //if (debug) Serial.print("freq:");
+    //if (debug )  Serial.println(temp2);
   }
-  
+
   switch (prog) {
     case 1:
       temp1 = pgm_read_float( &IndexToFreq[temp2 ]);
@@ -321,17 +312,19 @@ void loop()
     }
     freq_init1 = temp1;
   } else if (temp2 < 800  && temp2 > 100 && continuous == true ) { //&& abs(freq_init1 - temp2) > 5 ) {
-      if (freq_init1 > temp2) {
+    if (freq_init1 > temp2) {
       cont = GlideContinuous(freq_init1, temp2, false);
 
-      } else if (freq_init1 < temp2) {
+    } else if (freq_init1 < temp2) {
       cont = GlideContinuous(freq_init1, temp2, true);
-      }
+    }
     freq_init1 = temp2;
   }
   while (cont == false) {
     ; //nop
   }
+
+  eb1.update(); // respond to encoder/button
 
 
 }
@@ -344,24 +337,24 @@ bool GlideFreq(float from, float too, bool up) {
   if (up) {
     while (from < too) {
       AD[0].setFrequency(from);
-      AD[1].setFrequency(from * freq_offset);
+      //AD[1].setFrequency(from * freq_offset);
       from = from + 0.3;
 
     }
     // complete since while may exit early
     AD[0].setFrequency(too);
-    AD[1].setFrequency(too * freq_offset);
+    //AD[1].setFrequency(too * freq_offset);
 
   } else {
     while (from > too) {
       AD[0].setFrequency(from);
-      AD[1].setFrequency(from * freq_offset);
+      //AD[1].setFrequency(from * freq_offset);
       from = from - 0.3;
 
     }
     // complete since while may exit early
     AD[0].setFrequency(too);
-    AD[1].setFrequency(too * freq_offset);
+    //AD[1].setFrequency(too * freq_offset);
   }
   return true;
 }
@@ -372,116 +365,67 @@ bool GlideContinuous(float from, float too, bool up) {
   if (up) {
     while (from < too) {
       AD[0].setFrequency(from);
-      AD[1].setFrequency(from * freq_offset);
+      //AD[1].setFrequency(from * freq_offset);
       from = from + 0.1;
 
     }
     // complete since while may exit early
     AD[0].setFrequency(too);
-    AD[1].setFrequency(too * freq_offset);
+    //AD[1].setFrequency(too * freq_offset);
 
   } else {
     while (from > too) {
       AD[0].setFrequency(from);
-      AD[1].setFrequency(from * freq_offset);
+      //AD[1].setFrequency(from * freq_offset);
       from = from - 0.1;
 
     }
     // complete since while may exit early
     AD[0].setFrequency(too);
-    AD[1].setFrequency(too * freq_offset);
+    //AD[1].setFrequency(too * freq_offset);
   }
   return true;
 }
 
+int smooth2Value(uint16_t value, uint16_t steps)
+{
+  if (value > MCP4725_MAXVALUE) return MCP4725_VALUE_ERROR;
+
+  if (steps > 1)
+  {
+    uint16_t startValue = MCP.getValue();
+    float delta = (1.0 * (value - startValue)) / steps;
+
+    for (uint16_t i = 0; i < steps - 1; i++)
+    {
+      MCP.setValue( round(startValue + i * delta) );
+    }
+  }
+  //  get the end value right
+  return MCP.setValue(value);
+}
+
 // Function to glide volume up/down
-bool GlideVolume(float from, float too, bool up) {
+bool GlideVolume(float from, float too) {
+
   //make sure we complete the glides before the loop proceeds
+  float ft = from;
   cont = false;
-  if (up) {
-    while (from < too) {
-      from = from + 1;
+  if (from < too) {
+    while (ft < too) {
+      //analogWrite(4, from);
+      ft = ft + 1;
+      MCP.setValue(from);
 
     }
 
   } else {
-    while (from > too) {
-
-      from = from - 1;
+    while (ft > too) {
+      //analogWrite(4, from);
+      ft = ft - 1;
+      MCP.setValue(from);
 
     }
   }
   return true;
 }
-
-
-
-
-/* from synther jack just for reference as unused */
-
-/* Function converting frequency to offset from BASE_NOTE_FREQUENCY
-  float FreqToNote(float frequency) {
-  float x = (frequency / BASE_NOTE_FREQUENCY);
-  float y = 12.0 * log(x) / log(2.0);
-  return y;
-  }*/
-
-// AD9833 related functions
-/* AD9833 documentation advises a 'Reset' on first applying power.
-  void AD9833reset(int syncpin) {
-  WriteRegister(0x100, syncpin);   // Write '1' to AD9833 Control register bit D8.
-  delay(10);
-  }
-*/
-
-/* Set the frequency and waveform registers in the selected via syncpin AD9833
-  void AD9833init(float frequency, int waveform, int syncpin) {
-  long freq_word = (frequency * pow(2, 28)) / refFreq;
-
-  int MSB = (int)((freq_word & 0xFFFC000) >> 14);    //Only lower 14 bits are used for data
-  int LSB = (int)(freq_word & 0x3FFF);
-
-  //Set control bits 15 ande 14 to 0 and 1, respectively, for frequency register 0
-  LSB |= 0x4000;
-  MSB |= 0x4000;
-
-  WriteRegister(0x2100, syncpin);               // Allow 28 bits to be loaded into a frequency register in two consecutive writes and reset internal registers to 0
-  WriteRegister(LSB, syncpin);                  // Write lower 14 bits to AD9833 registers
-  WriteRegister(MSB, syncpin);                  // Write upper 14 bits to AD9833 registers
-  WriteRegister(0xC000, syncpin);               // Set phase register
-  WriteRegister(waveform, syncpin);             // Exit & Reset to SINE
-  }
-*/
-
-/* Set the frequency registers in the AD9833.
-  void AD9833set(float frequency, int syncpin) {
-
-  long freq_word = (frequency * pow(2, 28)) / refFreq;
-
-  int MSB = (int)((freq_word & 0xFFFC000) >> 14);    //Only lower 14 bits are used for data
-  int LSB = (int)(freq_word & 0x3FFF);
-
-  // Set control bits 15 ande 14 to 0 and 1, respectively, for frequency register 0
-  LSB |= 0x4000;
-  MSB |= 0x4000;
-
-  // Set frequency registers without reseting or changing phase to avoid clicking
-  WriteRegister(SQUARE, syncpin);               // Allow 28 bits to be loaded into a frequency register in two consecutive writes
-  WriteRegister(LSB, syncpin);                  // Write lower 14 bits to AD9833 registers
-  WriteRegister(MSB, syncpin);                  // Write upper 14 bits to AD9833 registers
-  }
-*/
-/* Write to AD9833 register
-  void WriteRegister(int dat, int syncpin) {
-  // Display and AD9833 use different SPI MODES so it has to be set for the AD9833 here.
-  SPI.setDataMode(SPI_MODE2);
-
-  digitalWrite(syncpin, LOW);           // Set FSYNC low before writing to AD9833 registers
-  delayMicroseconds(10);              // Give AD9833 time to get ready to receive data.
-
-  SPI.transfer(highByte(dat));        // Each AD9833 register is 32 bits wide and each 16
-  SPI.transfer(lowByte(dat));         // bits has to be transferred as 2 x 8-bit bytes.
-
-  digitalWrite(syncpin, HIGH);          //Write done. Set FSYNC high
-  }
-*/
