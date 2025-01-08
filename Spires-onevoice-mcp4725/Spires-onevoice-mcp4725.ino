@@ -113,6 +113,7 @@ bool cont = true;
 volatile float lastvol = 255;
 bool continuous = false;
 float lastVol = 4095.0;
+bool flutter = false;
 
 void setup()
 {
@@ -134,7 +135,7 @@ void setup()
   delay(50);
 
   //while (!Serial) {}
-  Serial.begin(115200);
+  Serial.begin(57600);
   Wire.begin();
   Wire.setClock(400000); // use 400 kHz I2C
 
@@ -216,7 +217,7 @@ void setup()
   // sensors[1].setVcselPulsePeriod(VL53L0X::VcselPeriodPreRange, 18);
   //sensors[1].setVcselPulsePeriod(VL53L0X::VcselPeriodFinalRange, 14);
   //
-  sensors[0].setMeasurementTimingBudget(20000);
+  sensors[0].setMeasurementTimingBudget(70000);
   sensors[1].setMeasurementTimingBudget(70000);
   //Serial.println(sensors[0].readRangeSingleMillimeters());
   //analogWrite(4, 255);
@@ -228,24 +229,26 @@ void loop()
 
   float temp1;
   int temp2;
-  int voltemp;
+  float voltemp;
 
   if (sensors[0].timeoutOccurred()) {
     Serial.print(" TIMEOUT");
   }
 
   volume = sensors[0].readRangeSingleMillimeters();
-  volume = map(volume, 150, 1200, 2048, 4095);
-  if (volume > 4095) volume = 4095;
-  if (volume < 2048 ) volume = 2048;
 
-  // alwasy adjust volume as fast as possible and don't continue loop until it's finished.
+  if (volume < 8190.00) {
+     //if (debug )    Serial.println(volume);
+    // alwasy adjust volume as fast as possible and don't continue loop until it's finished.
+    volume = map(volume, 80, 1300, 1820, 4095);
 
-
-  cont = GlideVolume( volume, lastvol );
-  lastvol = volume;
-  if (volume != lastvol) {
-    if (debug )  Serial.println(volume);
+    if (volume > 4095) volume = 4095;
+    if (volume < 1820 ) volume = 1820;
+    if ( abs( volume - lastvol  ) > 40 && ! flutter ) { // greater than 2 cm travel
+      flutter = GlideVolume( volume , lastvol );
+      if (debug )    Serial.println(abs( volume - lastvol ) );
+      lastvol = volume;
+    }
   }
 
 
@@ -263,10 +266,10 @@ void loop()
   if (freq_target2  < 1300 ) {
     if ( ! continuous ) {
       //AD[0].setWave(AD9833_TRIANGLE);
-      temp2 = int(map(freq_target2, 0, 1300, 28, 0));
+      temp2 = int(map(freq_target2, 50, 1300, 28, 0));
     } else {
       //AD[0].setWave(AD9833_SINE);
-      temp2 = map(freq_target2, 0, 1300, 780, 420);
+      temp2 = map(freq_target2, 50, 1300, 780, 420);
       //temp2 = map(freq_target2, 10, 1300, 58, 18);
       //temp2 = pgm_read_float( &ContToFreq[temp2 ]);
     }
@@ -390,7 +393,7 @@ bool GlideContinuous(float from, float too, bool up) {
 int smooth2Value(uint16_t value, uint16_t steps)
 {
   if (value > MCP4725_MAXVALUE) return MCP4725_VALUE_ERROR;
-
+  flutter = true;
   if (steps > 1)
   {
     uint16_t startValue = MCP.getValue();
@@ -401,21 +404,23 @@ int smooth2Value(uint16_t value, uint16_t steps)
       MCP.setValue( round(startValue + i * delta) );
     }
   }
+  flutter = false;
   //  get the end value right
   return MCP.setValue(value);
 }
 
 // Function to glide volume up/down
 bool GlideVolume(float from, float too) {
-
+  flutter = true;
   //make sure we complete the glides before the loop proceeds
   float ft = from;
-  cont = false;
+
   if (from < too) {
     while (ft < too) {
       //analogWrite(4, from);
       ft = ft + 1;
       MCP.setValue(from);
+
 
     }
 
@@ -425,7 +430,8 @@ bool GlideVolume(float from, float too) {
       ft = ft - 1;
       MCP.setValue(from);
 
+
     }
   }
-  return true;
+  return false;
 }
