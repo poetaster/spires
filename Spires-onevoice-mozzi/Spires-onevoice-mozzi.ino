@@ -8,18 +8,42 @@
 #include <SPI.h>
 #include <Wire.h>
 #include <VL53L0X.h>
-#include <math.h>
-#include <util/crc16.h>
-#include "AD9833.h"
-#include "MCP4725.h"
+
+// MOZZI
+
+#define MOZZI_CONTROL_RATE 256  // Hz, powers of 2 are most reliable
+#include <Mozzi.h>
+#include <Oscil.h>
+#include <tables/cos2048_int8.h>  // table for Oscils to play
+#include <EventDelay.h>
+#include <mozzi_rand.h>
+#include <mozzi_midi.h>
+#include <Smooth.h>
+// audio oscils
+Oscil<COS2048_NUM_CELLS, MOZZI_AUDIO_RATE> aCarrier(COS2048_DATA);
+Oscil<COS2048_NUM_CELLS, MOZZI_AUDIO_RATE> aModulator(COS2048_DATA);
+Oscil<COS2048_NUM_CELLS, MOZZI_AUDIO_RATE> aModDepth(COS2048_DATA);
+
+// for scheduling note changes in updateControl()
+EventDelay kNoteChangeDelay;
+
+UFix<8, 8> ratio;          // unsigned int with 8 integer bits and 8 fractional bits
+UFix<24, 8> carrier_freq;  // unsigned long with 24 integer bits and 8 fractional bits
+
+// for random notes
+const UFix<7, 0> octave_start_note = 42;
+
+// END MOZZI
+
+
+bool debug = true;
+
 #include <EncoderButton.h>
 
-MCP4725 MCP(0x60);
-bool debug = true;
 // encoder
 // the a and b + the button pin large encoders are 6,5,4
 EncoderButton eb1(2, 3, 5);
-
+// include "encoder.h"
 
 /* these come from rampart bytebeats */
 int encoder_pos_last = 0;
@@ -37,8 +61,9 @@ int pb3 = 1;
 int pb3total = 20;
 
 int numProg = 8;
-
+// here because of forward declarations
 #include "encoder.h"
+
 
 
 /* AUDIO */
@@ -49,18 +74,6 @@ const float ContToFreq[63] PROGMEM = {29.14, 30.87, 32.70, 34.65, 36.71, 38.89, 
                                       466.16, 493.88, 523.25, 554.37, 587.33, 622.25, 659.25, 698.46, 739.99, 783.99, 830.61, 880.00,
                                       932.33, 987.77, 1046.50
                                      };
-//  each device needs its own select pin.
-AD9833 AD[1] =
-{
-  AD9833(8),
-  //AD9833(9)
-};  //  4 devices.
-
-// AD9833 communication pins
-#define GEN_FSYNC1  8                       // Chip select pin for AD9833 1
-#define GEN_FSYNC2  9                       // Chip select pin for AD9833 2
-#define GEN_CLK     13                      // CLK and DATA pins are shared with multiple AD9833.
-#define GEN_DATA    11
 // AD9833 Waveform Module
 const int SINE = 0x2000;                    // Define AD9833's waveform register value.
 const int SQUARE = 0x2028;                  // When we update the frequency, we need to
@@ -72,7 +85,7 @@ float freq_target1 = 440.0;                 // Target frequency for Generator 1
 float freq_target2 = 442.0;                 // Target frequency for Generator 2
 float freq_offset = 1; //4 / 3;
 
-float volume = 255;  // volume for our machine
+float volume = 1000;  // volume for our machine
 
 // Table with note symbols, used for display
 const char *IndexToNote[] = {"C-", "C#", "D-", "D#", "E-", "F-", "F#", "G-", "G#", "A-", "A#", "B-"};
@@ -82,13 +95,6 @@ const char *IndexToNote[] = {"C-", "C#", "D-", "D#", "E-", "F-", "F#", "G-", "G#
 
 #define BASE_NOTE_FREQUENCY  16.3516 // C-0, Core of note/cent offset calculations, keep it accurate
 // Definition of generated frequency range
-#define MIN_GENERATED_FREQ  30.0 // Do not change to lower if you like your speakers
-#define MAX_GENERATED_FREQ  1000.0
-// Definition of binaural generator setting modes
-#define MODE_FREQ_FREQ    0
-#define MODE_FREQ_OFFSET  1
-#define MODE_NOTE_OFFSET  2
-#define MODE_SAVE         3
 
 signed char note_target = 47; //A-4, 440Hz
 #define NOTE_CALCULATION_OFFSET 10 //base note for calculation is C-0, but note table starts from A#0 
@@ -96,80 +102,34 @@ signed char note_target = 47; //A-4, 440Hz
 float noteIndex;
 
 /* END AUDIO */
-// The number of sensors in your system.
-const uint8_t sensorCount = 2;
+
 
 // The Arduino pin connected to the XSHUT pin of each sensor.
-const uint8_t xshutPins[sensorCount] = {6, 7};
+const uint8_t xshutPins[2] = {6, 7};
 
-int led = 9; // for the vactrol
+int led = 10; // for the vactrol
 //  analogReference(DEFAULT);  // 5v
 
+// The number of sensors in your system.
+const uint8_t sensorCount = 2;
 VL53L0X sensors[sensorCount];
 
 // variables for runtime control
 bool up;
 bool cont = true;
-volatile float lastvol = 255;
 bool continuous = false;
-float lastVol = 4095.0;
+float lastVol = 99;
+float currentDepth = 9;
 bool flutter = false;
 
 void setup()
 {
 
-
-  // setup led for audio volume
-  //analogReference(DEFAULT);  // 5v
-  //pinMode(led, OUTPUT);
-  //analogReference(DEFAULT);
-  //analogReference(INTERNAL2V56);
-  //pinMode(4, ANALOG);
-  // from audio
-
-  // Define pins function
-  //pinMode(GEN_FSYNC1, OUTPUT);                      // GEN_FSYNC1
-  //pinMode(GEN_FSYNC2, OUTPUT);                      // GEN_FSYNC2
-
-  SPI.begin();
-  delay(50);
-
   //while (!Serial) {}
-  Serial.begin(57600);
+  Serial.begin(115200);
   Wire.begin();
-  Wire.setClock(400000); // use 400 kHz I2C
-
-  MCP.begin();
-  //  calibrate max voltage
-  MCP.setMaxVoltage(5.1);
-
-  if (debug) {
-    Serial.print("\nVoltage:\t");
-    Serial.println(MCP.getVoltage());
-    Serial.println();
-
-
-    Serial.println(__FILE__);
-    Serial.print("AD9833_LIB_VERSION: ");
-    Serial.println(AD9833_LIB_VERSION);
-    Serial.println();
-  }
-
-  // start amp first
-  //AMP.begin(10, 14);
-  //Serial.println(AMP.getVolume(2));
-
-  AD[0].begin();
-  //AD[1].begin();
-  //  A major chord
-  AD[0].setWave(AD9833_TRIANGLE);
-  //AD[1].setWave(AD9833_SINE);
-  AD[0].setFrequency(240.00, 0);     //  A
-  //AD[1].setFrequency(242.00, 0);     //  C#
-  // END from audio
-
-
-
+  //Wire.setClock(400000); // use 400 kHz I2C
+  // setup the sensors
   // Disable/reset all sensors by driving their XSHUT pins low.
   for (uint8_t i = 0; i < sensorCount; i++)
   {
@@ -198,9 +158,8 @@ void setup()
     // the default of 0x29 (except for the last one, which could be left atSerial.println(freq_init1);
     // the default). To make it simple, we'll just count up from 0x2A.
     sensors[i].setAddress(0x2A + i);
-
     sensors[i].startContinuous(50);
-    //sensors[i].setMeasurementTimingBudget(70000); //  adjust this value to move to slower note slurs/jumps
+    sensors[i].setMeasurementTimingBudget(70000); //  adjust this value to move to slower note slurs/jumps
 
   }
 
@@ -217,61 +176,67 @@ void setup()
   // sensors[1].setVcselPulsePeriod(VL53L0X::VcselPeriodPreRange, 18);
   //sensors[1].setVcselPulsePeriod(VL53L0X::VcselPeriodFinalRange, 14);
   //
-  sensors[0].setMeasurementTimingBudget(70000);
-  sensors[1].setMeasurementTimingBudget(70000);
-  //Serial.println(sensors[0].readRangeSingleMillimeters());
+  //sensors[0].setMeasurementTimingBudget(70000);
+  //sensors[1].setMeasurementTimingBudget(70000);
+  
+  Serial.println(sensors[0].readRangeSingleMillimeters());
   //analogWrite(4, 255);
+
+  // mozzi setup
+  ratio = 3;
+  kNoteChangeDelay.set(200);  // note duration ms, within resolution of MOZZI_CONTROL_RATE
+  aModDepth.setFreq(13.f);    // vary mod depth to highlight am effects
+  randSeed();                 // reseed the random generator for different results each time the sketch runs
+  startMozzi();
+
+  if (debug) {
+    Serial.println("end setup");
+  }
+
+
 }
 
 int steps = 4;
-void loop()
-{
+
+void updateControl() {
 
   float temp1;
   int temp2;
   float voltemp;
-
+  Serial.println("Update control");
   if (sensors[0].timeoutOccurred()) {
     Serial.print(" TIMEOUT");
   }
 
   volume = sensors[0].readRangeSingleMillimeters();
 
+  Serial.println(volume);
   if (volume < 8190.00) {
-     //if (debug )    Serial.println(volume);
+    //if (debug )    Serial.println(volume);
     // alwasy adjust volume as fast as possible and don't continue loop until it's finished.
-    volume = map(volume, 80, 1300, 1420, 4095);
+    volume = map(volume, 50, 1300, 255, 1);
 
-    if (volume > 4095) volume = 4095;
-    if (volume < 1420 ) volume = 1420;
-    if ( abs( volume - lastvol  ) > 50 && ! flutter ) { // greater than 2 cm travel
-      flutter = GlideVolume( volume , lastvol );
-      if (debug )    Serial.println(abs( volume - lastvol ) );
-      lastvol = volume;
+    if (volume > 255) volume = 255;
+    if (volume < 1 ) volume = 1;
+    if (debug )    Serial.println( lastVol);
+    //if (debug ) Serial.print(" - ");
+
+    //Tremello(); //
+    if (! flutter) {
+      //flutter = GlideVolume( volume , lastVol );
     }
+    //currentDepth = volume;
+    lastVol = volume;
+     ratio = volume;
   }
 
-
-  //analogWrite(led, volume);
-  //analogWrite(4, volume); // D4 is the dac on the LGT8F
-  //Serial.println(volume);
-
-
-  // not used since we're using an offset for both osc
-  //freq_target2 = pgm_read_float(&IndexToFreq[map(sensors[0].readRangeContinuousMillimeters(), 10, 1300, 0, 31)]) ; // freq_init2;
-  //Serial.println(temp1);
-  //temp2 = freq_target2;
-  //temp2 = int(map(sensors[1].readRangeContinuousMillimeters(), 0, 1300, 31, 0));
   freq_target2 = sensors[1].readRangeSingleMillimeters();
+  
   if (freq_target2  < 1300 ) {
     if ( ! continuous ) {
-      //AD[0].setWave(AD9833_TRIANGLE);
       temp2 = int(map(freq_target2, 50, 1300, 28, 0));
     } else {
-      //AD[0].setWave(AD9833_SINE);
       temp2 = map(freq_target2, 50, 1300, 780, 420);
-      //temp2 = map(freq_target2, 10, 1300, 58, 18);
-      //temp2 = pgm_read_float( &ContToFreq[temp2 ]);
     }
     //if (debug) Serial.print("freq:");
     //if (debug )  Serial.println(temp2);
@@ -323,11 +288,26 @@ void loop()
     }
     freq_init1 = temp2;
   }
-  while (cont == false) {
-    ; //nop
-  }
+
 
   eb1.update(); // respond to encoder/button
+
+
+
+
+
+}
+
+AudioOutput updateAudio() {
+  auto mod = UFix<8, 0>(128 + aModulator.next()) * UFix<8, 0>(128 + aModDepth.next());
+  return MonoOutput::fromSFix(mod * toSFraction(aCarrier.next()));
+}
+
+
+void loop()
+{
+
+  audioHook();
 
 
 }
@@ -335,30 +315,31 @@ void loop()
 
 // Function to glide notes up/down
 bool GlideFreq(float from, float too, bool up) {
+   Serial.println("Glide");
   //make sure we complete the glides before the loop proceeds
   cont = false;
   if (up) {
     while (from < too) {
-      AD[0].setFrequency(from);
-      //AD[1].setFrequency(from * freq_offset);
+      carrier_freq = from;
+      auto mod_freq = carrier_freq * ratio;
+      aCarrier.setFreq(carrier_freq);
+      aModulator.setFreq(mod_freq);
       from = from + 0.3;
-
-    }
-    // complete since while may exit early
-    AD[0].setFrequency(too);
-    //AD[1].setFrequency(too * freq_offset);
-
+      }
   } else {
     while (from > too) {
-      AD[0].setFrequency(from);
-      //AD[1].setFrequency(from * freq_offset);
+      carrier_freq = from;
+      auto mod_freq = carrier_freq * ratio;
+      aCarrier.setFreq(carrier_freq);
+      aModulator.setFreq(mod_freq);
       from = from - 0.3;
 
     }
     // complete since while may exit early
-    AD[0].setFrequency(too);
-    //AD[1].setFrequency(too * freq_offset);
+
   }
+
+
   return true;
 }
 // Function to glide notes up/down
@@ -367,47 +348,30 @@ bool GlideContinuous(float from, float too, bool up) {
   cont = false;
   if (up) {
     while (from < too) {
-      AD[0].setFrequency(from);
+      //AD[0].setFrequency(from);
       //AD[1].setFrequency(from * freq_offset);
       from = from + 0.1;
 
     }
     // complete since while may exit early
-    AD[0].setFrequency(too);
+    //AD[0].setFrequency(too);
     //AD[1].setFrequency(too * freq_offset);
 
   } else {
     while (from > too) {
-      AD[0].setFrequency(from);
+      //AD[0].setFrequency(from);
       //AD[1].setFrequency(from * freq_offset);
       from = from - 0.1;
 
     }
     // complete since while may exit early
-    AD[0].setFrequency(too);
+    //AD[0].setFrequency(too);
     //AD[1].setFrequency(too * freq_offset);
   }
   return true;
 }
 
-int smooth2Value(uint16_t value, uint16_t steps)
-{
-  if (value > MCP4725_MAXVALUE) return MCP4725_VALUE_ERROR;
-  flutter = true;
-  if (steps > 1)
-  {
-    uint16_t startValue = MCP.getValue();
-    float delta = (1.0 * (value - startValue)) / steps;
 
-    for (uint16_t i = 0; i < steps - 1; i++)
-    {
-      MCP.setValue( round(startValue + i * delta) );
-    }
-  }
-  flutter = false;
-  //  get the end value right
-  return MCP.setValue(value);
-}
 
 // Function to glide volume up/down
 bool GlideVolume(float from, float too) {
@@ -419,8 +383,8 @@ bool GlideVolume(float from, float too) {
     while (ft < too) {
       //analogWrite(4, from);
       ft = ft + 1;
-      MCP.setValue(from);
-
+      //MCP.setValue(from);
+      //pot.increase(1);
 
     }
 
@@ -428,10 +392,24 @@ bool GlideVolume(float from, float too) {
     while (ft > too) {
       //analogWrite(4, from);
       ft = ft - 1;
-      MCP.setValue(from);
+      //MCP.setValue(from);
+      //pot.decrease(1);
 
 
     }
   }
   return false;
+}
+// Function to glide volume up/down
+void Tremello() {
+  //make sure we complete the glides before the loop proceeds
+  if (lastVol < ( 99 - currentDepth) ) {
+    lastVol = lastVol + 1;
+    //pot.increase(1);
+
+  } else {
+    lastVol = lastVol - 1;
+    //pot.decrease(1);
+  }
+  if (debug )    Serial.println( lastVol);
 }

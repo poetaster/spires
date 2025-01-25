@@ -11,10 +11,11 @@
 #include <math.h>
 #include <util/crc16.h>
 #include "AD9833.h"
-#include "MCP4725.h"
 #include <EncoderButton.h>
+#include <DigiPotX9Cxxx.h>
 
-MCP4725 MCP(0x60);
+DigiPot pot(A0, A1, 4);
+
 bool debug = true;
 // encoder
 // the a and b + the button pin large encoders are 6,5,4
@@ -72,7 +73,7 @@ float freq_target1 = 440.0;                 // Target frequency for Generator 1
 float freq_target2 = 442.0;                 // Target frequency for Generator 2
 float freq_offset = 1; //4 / 3;
 
-float volume = 255;  // volume for our machine
+float volume = 1000;  // volume for our machine
 
 // Table with note symbols, used for display
 const char *IndexToNote[] = {"C-", "C#", "D-", "D#", "E-", "F-", "F#", "G-", "G#", "A-", "A#", "B-"};
@@ -110,49 +111,49 @@ VL53L0X sensors[sensorCount];
 // variables for runtime control
 bool up;
 bool cont = true;
-volatile float lastvol = 255;
 bool continuous = false;
-float lastVol = 4095.0;
+float lastVol = 99;
+float currentDepth = 9;
 bool flutter = false;
 
 void setup()
 {
 
 
-  // setup led for audio volume
+  // setup d for audio volume
   //analogReference(DEFAULT);  // 5v
   //pinMode(led, OUTPUT);
   //analogReference(DEFAULT);
   //analogReference(INTERNAL2V56);
   //pinMode(4, ANALOG);
   // from audio
-
+  //pinMode(A0, OUTPUT);
+  //pinMode(A1, OUTPUT);
   // Define pins function
   //pinMode(GEN_FSYNC1, OUTPUT);                      // GEN_FSYNC1
   //pinMode(GEN_FSYNC2, OUTPUT);                      // GEN_FSYNC2
+
 
   SPI.begin();
   delay(50);
 
   //while (!Serial) {}
-  Serial.begin(57600);
+  Serial.begin(115200);
   Wire.begin();
   Wire.setClock(400000); // use 400 kHz I2C
 
-  MCP.begin();
+  //MCP.begin();
   //  calibrate max voltage
-  MCP.setMaxVoltage(5.1);
+  //MCP.setMaxVoltage(5.1);
 
   if (debug) {
-    Serial.print("\nVoltage:\t");
-    Serial.println(MCP.getVoltage());
-    Serial.println();
 
 
     Serial.println(__FILE__);
     Serial.print("AD9833_LIB_VERSION: ");
     Serial.println(AD9833_LIB_VERSION);
     Serial.println();
+
   }
 
   // start amp first
@@ -219,8 +220,17 @@ void setup()
   //
   sensors[0].setMeasurementTimingBudget(70000);
   sensors[1].setMeasurementTimingBudget(70000);
-  //Serial.println(sensors[0].readRangeSingleMillimeters());
+  Serial.println(sensors[0].readRangeSingleMillimeters());
   //analogWrite(4, 255);
+
+
+
+  if (debug) {
+    Serial.println("end setup");
+  }
+  pot.set(99);
+
+
 }
 
 int steps = 4;
@@ -237,18 +247,23 @@ void loop()
 
   volume = sensors[0].readRangeSingleMillimeters();
 
-  if (volume < 8190.00) {
-     //if (debug )    Serial.println(volume);
-    // alwasy adjust volume as fast as possible and don't continue loop until it's finished.
-    volume = map(volume, 80, 1300, 1420, 4095);
 
-    if (volume > 4095) volume = 4095;
-    if (volume < 1420 ) volume = 1420;
-    if ( abs( volume - lastvol  ) > 50 && ! flutter ) { // greater than 2 cm travel
-      flutter = GlideVolume( volume , lastvol );
-      if (debug )    Serial.println(abs( volume - lastvol ) );
-      lastvol = volume;
+  if (volume < 8190.00) {
+    //if (debug )    Serial.println(volume);
+    // alwasy adjust volume as fast as possible and don't continue loop until it's finished.
+    volume = map(volume, 50, 1300, 99, 5);
+
+    if (volume > 99) volume = 99;
+    if (volume < 5 ) volume = 5;
+    if (debug )    Serial.println( lastVol);
+    //if (debug ) Serial.print(" - ");
+
+    //Tremello(); //
+    if (! flutter) {
+      flutter = GlideVolume( volume , lastVol );
     }
+    //currentDepth = volume;
+    lastVol = volume;
   }
 
 
@@ -390,24 +405,7 @@ bool GlideContinuous(float from, float too, bool up) {
   return true;
 }
 
-int smooth2Value(uint16_t value, uint16_t steps)
-{
-  if (value > MCP4725_MAXVALUE) return MCP4725_VALUE_ERROR;
-  flutter = true;
-  if (steps > 1)
-  {
-    uint16_t startValue = MCP.getValue();
-    float delta = (1.0 * (value - startValue)) / steps;
 
-    for (uint16_t i = 0; i < steps - 1; i++)
-    {
-      MCP.setValue( round(startValue + i * delta) );
-    }
-  }
-  flutter = false;
-  //  get the end value right
-  return MCP.setValue(value);
-}
 
 // Function to glide volume up/down
 bool GlideVolume(float from, float too) {
@@ -419,8 +417,8 @@ bool GlideVolume(float from, float too) {
     while (ft < too) {
       //analogWrite(4, from);
       ft = ft + 1;
-      MCP.setValue(from);
-
+      //MCP.setValue(from);
+      pot.increase(1);
 
     }
 
@@ -428,10 +426,24 @@ bool GlideVolume(float from, float too) {
     while (ft > too) {
       //analogWrite(4, from);
       ft = ft - 1;
-      MCP.setValue(from);
+      //MCP.setValue(from);
+      pot.decrease(1);
 
 
     }
   }
   return false;
+}
+// Function to glide volume up/down
+void Tremello() {
+  //make sure we complete the glides before the loop proceeds
+  if (lastVol < ( 99 - currentDepth) ) {
+    lastVol = lastVol + 1;
+    pot.increase(1);
+
+  } else {
+    lastVol = lastVol - 1;
+    pot.decrease(1);
+  }
+ if (debug )    Serial.println( lastVol);
 }
