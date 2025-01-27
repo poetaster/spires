@@ -9,7 +9,9 @@
 #include <Wire.h>
 #include <VL53L0X.h>
 
-#include "Volume3.h" // Include the Volume library
+//#include "Synth.h" // Include the Volume library
+//Synth syn(9);
+#include "Volume3.h"
 #define speakerPin 9
 
 #include <EncoderButton.h>
@@ -97,7 +99,7 @@ void setup()
   Wire.setClock(400000); // use 400 kHz I2C
   
   // set wave form
-
+  //syn.tone_type(TRIANGLE_WAVE);
   //   syn.tone_seeded(440, random(255), seed);
 
   // Disable/reset all sensors by driving their XSHUT pins low.
@@ -169,15 +171,9 @@ void loop()
   int temp2;
   float voltemp;
 
-  if (sensors[0].timeoutOccurred()) {
-    Serial.print(" TIMEOUT");
-  }
-
   volume = sensors[0].readRangeSingleMillimeters();
   freq_target2 = sensors[1].readRangeSingleMillimeters();
 
-
-  
   if (freq_target2  < 1300 ) {
     if ( ! continuous ) {
       temp2 = int(map(freq_target2, 50, 1300, 28, 0));
@@ -245,18 +241,24 @@ void loop()
 
     if (volume > 155) volume = 155;
     if (volume < 10 ) volume = 10;
-    if (debug )    Serial.println( lastVol);
+    //if (debug )    Serial.println( lastVol);
     //if (debug ) Serial.print(" - ");
 
     //Tremello(); //
-    if (! flutter) {
+    if (! flutter && abs(volume - lastVol) > 3.00 ) {
+      if (debug )    Serial.println( abs(volume - lastVol));
       //flutter = GlideVolume( volume , lastVol );
+      //syn.tone(freq_init1,volume);
+      vol.tone(speakerPin,freq_init1,volume);
+      
+      
     }
     //currentDepth = volume;
-    if ( volume != lastVol) {
-      vol.tone(speakerPin,freq_init1,lastVol);
+    /*if ( volume != lastVol) {
+      syn.tone(freq_init1,lastVol);
+      //vol.tone(speakerPin,freq_init1,lastVol);
       //GlideVolume( volume , lastVol );
-    }
+    }*/
     lastVol = volume;
     
   }
@@ -273,6 +275,7 @@ bool GlideFreq(float from, float too, bool up) {
   if (up) {
     while (from < too) {
       vol.tone(speakerPin,from,lastVol);
+      //syn.tone(from, lastVol);
       from = from + 0.3;
     }
     // complete since while may exit early
@@ -280,6 +283,7 @@ bool GlideFreq(float from, float too, bool up) {
     
   } else {
     while (from > too) {
+      //syn.tone(from, lastVol);
       vol.tone(speakerPin,from,lastVol);
       from = from - 0.3;
 
@@ -324,6 +328,8 @@ bool GlideVolume(float from, float too) {
       //analogWrite(4, from);
       ft = ft + 1;
       vol.tone(speakerPin,freq_init1,ft);
+      //syn.tone(freq_init1, ft);
+      
 
     }
 
@@ -332,6 +338,7 @@ bool GlideVolume(float from, float too) {
       //analogWrite(4, from);
       ft = ft - 1;
       vol.tone(speakerPin,freq_init1,ft);
+      //syn.tone(freq_init1, ft);
     }
   }
   return false;

@@ -11,12 +11,6 @@
 #include <math.h>
 #include <util/crc16.h>
 #include "AD9833.h"
-//#include "M62429.h"
-
-//M62429  AMP;
-//uint8_t attn = 0;
-
-
 
 #include <EncoderButton.h>
 
@@ -101,14 +95,15 @@ signed char note_target = 47; //A-4, 440Hz
 float noteIndex;
 
 /* END AUDIO */
-// The number of sensors in your system.
-const uint8_t sensorCount = 2;
 
-// The Arduino pin connected to the XSHUT pin of each sensor.
-const uint8_t xshutPins[sensorCount] = {6, 7};
 
-int led = 9; // for the vactrol
+
+int led = 13; // for the vactrol
 //  analogReference(DEFAULT);  // 5v
+// The number of sensors in your system.
+const uint8_t sensorCount = 1; // original used two. switched to ldr for volume
+// The Arduino pin connected to the XSHUT pin of each sensor.
+const uint8_t xshutPins[sensorCount] = {7};
 
 VL53L0X sensors[sensorCount];
 
@@ -126,15 +121,12 @@ void setup()
   // setup led for audio volume
   //analogReference(DEFAULT);  // 5v
   pinMode(led, OUTPUT);
-  analogReference(DEFAULT);
+  // DAC stuff, not used
+  //analogReference(DEFAULT);
   //analogReference(INTERNAL2V56);
-  pinMode(4, ANALOG);
+  //pinMode(4, ANALOG);
   // from audio
-
-  // Define pins function
-  //pinMode(GEN_FSYNC1, OUTPUT);                      // GEN_FSYNC1
-  //pinMode(GEN_FSYNC2, OUTPUT);                      // GEN_FSYNC2
-
+  
   SPI.begin();
   delay(50);
 
@@ -160,19 +152,7 @@ void setup()
   AD[0].setFrequency(240.00, 0);     //  A
   //AD[1].setFrequency(242.00, 0);     //  C#
 
-  /* syntherjack, for reference
-    Set both AD9833 CS pins to high (don't accept data)
-    digitalWrite(GEN_FSYNC1, HIGH);
-    digitalWrite(GEN_FSYNC2, HIGH);
-    AD9833reset(GEN_FSYNC1);                                   // Reset AD9833 module after power-up.
-    delay(50);
-    AD9833init(freq_init1, SQUARE, GEN_FSYNC1);                  // Set the frequency and Sine Wave output
-
-    AD9833reset(GEN_FSYNC2);                                   // Reset AD9833 module after power-up.
-    delay(50);
-    AD9833init(freq_init2, SQUARE, GEN_FSYNC2);                  // Set the frequency and Sine Wave output
-  */
-  //can be also readed from eeprom
+  //can be also read from eeprom
   freq_target1 = freq_init1;
   freq_target2 = freq_init2;
 
@@ -248,49 +228,12 @@ void loop()
   if (sensors[0].timeoutOccurred()) {
     Serial.print(" TIMEOUT");
   }
-
-  volume = sensors[0].readRangeSingleMillimeters();
-  volume = int(map(volume, 100, 1200, 20, 255));
-  if (volume > 255) volume = 255;
-  if (volume < 20 )volume = 20;
-  /*
-  voltemp = lastvol;
-  if (volume < lastvol) {
-    
-    //cont = GlideVolume(volume, lastvol, false);
-    if (debug )  Serial.println(volume);
-    while (voltemp < volume) {
-      voltemp = voltemp + 1;
-      analogWrite(4, voltemp);
-      if (debug )  Serial.println(lastvol);
-    }
-  } else if ( volume > lastvol) {
-    //cont = GlideVolume(lastvol, volume, true);
-    while (voltemp > volume) {
-      voltemp = voltemp - 1;
-      
-    }
-  }
-  lastvol = volume;
-  if (debug )  Serial.println(lastvol);
-  */
-  if (volume != lastvol) {
-    analogWrite(4, volume);
-    if (debug )  Serial.println(volume);
-    lastvol = volume;
-  }
   
   //analogWrite(led, volume);
   //analogWrite(4, volume); // D4 is the dac on the LGT8F
   //Serial.println(volume);
 
-
-  // not used since we're using an offset for both osc
-  //freq_target2 = pgm_read_float(&IndexToFreq[map(sensors[0].readRangeContinuousMillimeters(), 10, 1300, 0, 31)]) ; // freq_init2;
-  //Serial.println(temp1);
-  //temp2 = freq_target2;
-  //temp2 = int(map(sensors[1].readRangeContinuousMillimeters(), 0, 1300, 31, 0));
-  freq_target2 = sensors[1].readRangeSingleMillimeters();
+  freq_target2 = sensors[0].readRangeSingleMillimeters();
   if (freq_target2  < 1300 ) {
     if ( ! continuous ) {
       //AD[0].setWave(AD9833_TRIANGLE);
@@ -437,75 +380,3 @@ bool GlideVolume(float from, float too, bool up) {
   lastvol = too;
   return true;
 }
-
-
-
-
-/* from synther jack just for reference as unused */
-
-/* Function converting frequency to offset from BASE_NOTE_FREQUENCY
-  float FreqToNote(float frequency) {
-  float x = (frequency / BASE_NOTE_FREQUENCY);
-  float y = 12.0 * log(x) / log(2.0);
-  return y;
-  }*/
-
-// AD9833 related functions
-/* AD9833 documentation advises a 'Reset' on first applying power.
-  void AD9833reset(int syncpin) {
-  WriteRegister(0x100, syncpin);   // Write '1' to AD9833 Control register bit D8.
-  delay(10);
-  }
-*/
-
-/* Set the frequency and waveform registers in the selected via syncpin AD9833
-  void AD9833init(float frequency, int waveform, int syncpin) {
-  long freq_word = (frequency * pow(2, 28)) / refFreq;
-
-  int MSB = (int)((freq_word & 0xFFFC000) >> 14);    //Only lower 14 bits are used for data
-  int LSB = (int)(freq_word & 0x3FFF);
-
-  //Set control bits 15 ande 14 to 0 and 1, respectively, for frequency register 0
-  LSB |= 0x4000;
-  MSB |= 0x4000;
-
-  WriteRegister(0x2100, syncpin);               // Allow 28 bits to be loaded into a frequency register in two consecutive writes and reset internal registers to 0
-  WriteRegister(LSB, syncpin);                  // Write lower 14 bits to AD9833 registers
-  WriteRegister(MSB, syncpin);                  // Write upper 14 bits to AD9833 registers
-  WriteRegister(0xC000, syncpin);               // Set phase register
-  WriteRegister(waveform, syncpin);             // Exit & Reset to SINE
-  }
-*/
-
-/* Set the frequency registers in the AD9833.
-  void AD9833set(float frequency, int syncpin) {
-
-  long freq_word = (frequency * pow(2, 28)) / refFreq;
-
-  int MSB = (int)((freq_word & 0xFFFC000) >> 14);    //Only lower 14 bits are used for data
-  int LSB = (int)(freq_word & 0x3FFF);
-
-  // Set control bits 15 ande 14 to 0 and 1, respectively, for frequency register 0
-  LSB |= 0x4000;
-  MSB |= 0x4000;
-
-  // Set frequency registers without reseting or changing phase to avoid clicking
-  WriteRegister(SQUARE, syncpin);               // Allow 28 bits to be loaded into a frequency register in two consecutive writes
-  WriteRegister(LSB, syncpin);                  // Write lower 14 bits to AD9833 registers
-  WriteRegister(MSB, syncpin);                  // Write upper 14 bits to AD9833 registers
-  }
-*/
-/* Write to AD9833 register
-  void WriteRegister(int dat, int syncpin) {
-  // Display and AD9833 use different SPI MODES so it has to be set for the AD9833 here.
-  SPI.setDataMode(SPI_MODE2);
-
-  digitalWrite(syncpin, LOW);           // Set FSYNC low before writing to AD9833 registers
-  delayMicroseconds(10);              // Give AD9833 time to get ready to receive data.
-
-  SPI.transfer(highByte(dat));        // Each AD9833 register is 32 bits wide and each 16
-  SPI.transfer(lowByte(dat));         // bits has to be transferred as 2 x 8-bit bytes.
-
-  digitalWrite(syncpin, HIGH);          //Write done. Set FSYNC high
-  }
-*/

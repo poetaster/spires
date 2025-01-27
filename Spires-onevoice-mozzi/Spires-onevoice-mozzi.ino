@@ -5,12 +5,14 @@
 
 
 */
-#include <SPI.h>
+
 #include <Wire.h>
 #include <VL53L0X.h>
+#include <RotaryEncoder.h>
 
 // MOZZI
-
+#define AUDIO_CHANNEL_1_PIN 2
+#define MOZZI_AUDIO_PIN_1 2
 #define MOZZI_CONTROL_RATE 256  // Hz, powers of 2 are most reliable
 #include <Mozzi.h>
 #include <Oscil.h>
@@ -20,6 +22,7 @@
 #include <mozzi_midi.h>
 #include <Smooth.h>
 // audio oscils
+
 Oscil<COS2048_NUM_CELLS, MOZZI_AUDIO_RATE> aCarrier(COS2048_DATA);
 Oscil<COS2048_NUM_CELLS, MOZZI_AUDIO_RATE> aModulator(COS2048_DATA);
 Oscil<COS2048_NUM_CELLS, MOZZI_AUDIO_RATE> aModDepth(COS2048_DATA);
@@ -38,16 +41,23 @@ const UFix<7, 0> octave_start_note = 42;
 
 bool debug = true;
 
-#include <EncoderButton.h>
+
+// on the long ec11 these are swapped A 19, B 18
+const int encoderA_pin = 8;
+const int encoderB_pin = 7;
+const int encoderSW_pin = 5;
+// variables for UI state management
+int encoder_pos_last = 0;
+int encoder_delta = 0;
+
 
 // encoder
-// the a and b + the button pin large encoders are 6,5,4
-EncoderButton eb1(2, 3, 5);
-// include "encoder.h"
+RotaryEncoder encoder(encoderB_pin, encoderA_pin, RotaryEncoder::LatchMode::FOUR3);
+void checkEncoderPosition() {
+  encoder.tick();   // call tick() to check the state.
+}
 
 /* these come from rampart bytebeats */
-int encoder_pos_last = 0;
-long encoder_delta = 0;
 int enc_offset = 1; // changes direction
 int enc_delta; // which direction
 //for program switching
@@ -61,8 +71,6 @@ int pb3 = 1;
 int pb3total = 20;
 
 int numProg = 8;
-// here because of forward declarations
-#include "encoder.h"
 
 
 
@@ -105,7 +113,7 @@ float noteIndex;
 
 
 // The Arduino pin connected to the XSHUT pin of each sensor.
-const uint8_t xshutPins[2] = {6, 7};
+const uint8_t xshutPins[2] = {3, 4};
 
 int led = 10; // for the vactrol
 //  analogReference(DEFAULT);  // 5v
@@ -127,8 +135,15 @@ void setup()
 
   //while (!Serial) {}
   Serial.begin(115200);
+  //Wire1.setSDA(14);
+  //Wire1.setSCL(15);
+  Wire.setSDA(0);
+  Wire.setSCL(1);
+  
   Wire.begin();
-  //Wire.setClock(400000); // use 400 kHz I2C
+  Wire.setClock(400000); // use 400 kHz I2C
+
+  
   // setup the sensors
   // Disable/reset all sensors by driving their XSHUT pins low.
   for (uint8_t i = 0; i < sensorCount; i++)
@@ -162,15 +177,17 @@ void setup()
     sensors[i].setMeasurementTimingBudget(70000); //  adjust this value to move to slower note slurs/jumps
 
   }
+  
+  pinMode(23, OUTPUT); // thi is to switch to PWM for power to avoid ripple noise
+  digitalWrite(23, HIGH);
 
-
-  // setup for the encoder with button
-  // Link the event(s) to your function
-  eb1.setClickHandler(onEb1Clicked);
-  eb1.setEncoderHandler(onEb1Encoder);
-  eb1.setLongPressHandler(onEb1LongPress, true);
-  eb1.setEncoderPressedHandler(onEb1PressTurn);
-
+  // ENCODER
+  pinMode(encoderA_pin, INPUT_PULLUP);
+  pinMode(encoderB_pin, INPUT_PULLUP);
+  pinMode(5, INPUT_PULLUP);
+  attachInterrupt(digitalPinToInterrupt(encoderA_pin), checkEncoderPosition, CHANGE);
+  attachInterrupt(digitalPinToInterrupt(encoderB_pin), checkEncoderPosition, CHANGE);
+  
   //sensors[1].setSignalRateLimit(0.1);
   // increase laser pulse periods (defaults are 14 and 10 PCLKs)
   // sensors[1].setVcselPulsePeriod(VL53L0X::VcselPeriodPreRange, 18);
@@ -196,11 +213,54 @@ void setup()
 
 }
 
+
 int steps = 4;
 
 void updateControl() {
 
-  float temp1;
+  
+
+  // set play mode 0 play 1 edit patterns, 3 FX?
+  /*
+  if (encoder_push_millis > 0 ) {
+    if ((now - encoder_push_millis) > 25 && ! encoder_delta ) {
+      if ( !encoder_held ) {
+        encoder_held = true;
+        display_mode = display_mode+1;
+        if ( display_mode > 2) { // switched back to play mode
+          display_mode = 0;
+          //configure_sequencer();
+        }
+      }
+    }
+
+    if (step_push_millis > 0) { // we're pushing a step key too
+      if (encoder_push_millis < step_push_millis) {  // and encoder was pushed first
+        //strcpy(seq_info, "saveseq");
+      }
+    }
+  }*/
+
+
+
+
+}
+
+AudioOutput updateAudio() {
+  auto mod = UFix<8, 0>(128 + aModulator.next()) * UFix<8, 0>(128 + aModDepth.next());
+  return MonoOutput::fromSFix(mod * toSFraction(aCarrier.next()));
+}
+
+// second core setup
+// second core dedicated to sample processing
+void setup1() {
+  delay (1000); // wait for main core to start up perhipherals
+  
+}
+
+// second core calculates samples and sends to DAC
+void loop1() {
+float temp1;
   int temp2;
   float voltemp;
   Serial.println("Update control");
@@ -290,27 +350,22 @@ void updateControl() {
   }
 
 
-  eb1.update(); // respond to encoder/button
-
-
-
-
+  encoder.tick();
+  
+  int encoder_pos = encoder.getPosition();
+  if ( (encoder_pos != encoder_pos_last )) {
+    encoder_delta = encoder_pos - encoder_pos_last;
+    prog = constrain(encoder_pos, 1, numProg );
+    Serial.println(encoder_pos);
+  }
 
 }
-
-AudioOutput updateAudio() {
-  auto mod = UFix<8, 0>(128 + aModulator.next()) * UFix<8, 0>(128 + aModDepth.next());
-  return MonoOutput::fromSFix(mod * toSFraction(aCarrier.next()));
-}
-
 
 void loop()
 {
-
-  audioHook();
-
-
+    audioHook();
 }
+
 // END LOOP
 
 // Function to glide notes up/down

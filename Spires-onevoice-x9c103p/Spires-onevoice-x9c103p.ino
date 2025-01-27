@@ -113,7 +113,7 @@ bool up;
 bool cont = true;
 bool continuous = false;
 float lastVol = 99;
-float currentDepth = 9;
+int currentDepth = 9;
 bool flutter = false;
 
 void setup()
@@ -141,10 +141,6 @@ void setup()
   Serial.begin(115200);
   Wire.begin();
   Wire.setClock(400000); // use 400 kHz I2C
-
-  //MCP.begin();
-  //  calibrate max voltage
-  //MCP.setMaxVoltage(5.1);
 
   if (debug) {
 
@@ -234,6 +230,9 @@ void setup()
 }
 
 int steps = 4;
+int currentVolume = 99;
+int bottom;
+
 void loop()
 {
 
@@ -248,23 +247,9 @@ void loop()
   volume = sensors[0].readRangeSingleMillimeters();
 
 
-  if (volume < 8190.00) {
-    //if (debug )    Serial.println(volume);
-    // alwasy adjust volume as fast as possible and don't continue loop until it's finished.
-    volume = map(volume, 50, 1300, 99, 5);
 
-    if (volume > 99) volume = 99;
-    if (volume < 5 ) volume = 5;
-    if (debug )    Serial.println( lastVol);
-    //if (debug ) Serial.print(" - ");
 
-    //Tremello(); //
-    if (! flutter) {
-      flutter = GlideVolume( volume , lastVol );
-    }
-    //currentDepth = volume;
-    lastVol = volume;
-  }
+  //Tremello(); //
 
 
   //analogWrite(led, volume);
@@ -340,6 +325,26 @@ void loop()
   }
   while (cont == false) {
     ; //nop
+  }
+  if (volume < 8190.00) {
+    //if (debug )    Serial.println(volume);
+    // alwasy adjust volume as fast as possible and don't continue loop until it's finished.
+    volume = map(volume, 50, 1300, 99, 25);
+
+    if (volume > 99) volume = 99;
+    if (volume < 25 ) volume = 25;
+
+    //if (debug ) Serial.print(" - ");
+
+    currentDepth = (int)volume;
+    bottom = 99 - currentDepth;
+    if (! flutter && volume != lastVol) {
+      if (debug ) Serial.println(volume);
+      if (debug ) Serial.println(lastVol);
+      flutter = GlideVolume( volume , lastVol );
+      
+    }
+    lastVol = volume;
   }
 
   eb1.update(); // respond to encoder/button
@@ -436,14 +441,16 @@ bool GlideVolume(float from, float too) {
 }
 // Function to glide volume up/down
 void Tremello() {
-  //make sure we complete the glides before the loop proceeds
-  if (lastVol < ( 99 - currentDepth) ) {
-    lastVol = lastVol + 1;
-    pot.increase(1);
 
+  //make sure we complete the glides before the loop proceeds
+  if (currentVolume < bottom ) {
+    currentVolume = currentVolume + 1;
+    pot.increase(1);
   } else {
-    lastVol = lastVol - 1;
+    currentVolume = currentVolume - 1;
     pot.decrease(1);
+    ;
   }
- if (debug )    Serial.println( lastVol);
+
+  if (debug )    Serial.println( currentVolume);
 }
