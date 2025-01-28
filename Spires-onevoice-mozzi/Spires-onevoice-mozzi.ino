@@ -1,9 +1,6 @@
 /*
   Spires is copyright 2024, Mark Washeim blueprint@poetaster.de
   GPLv3
-
-
-
 */
 
 #include <Wire.h>
@@ -11,8 +8,6 @@
 #include <RotaryEncoder.h>
 
 // MOZZI
-#define AUDIO_CHANNEL_1_PIN 2
-#define MOZZI_AUDIO_PIN_1 2
 #define MOZZI_CONTROL_RATE 256  // Hz, powers of 2 are most reliable
 #include <Mozzi.h>
 #include <Oscil.h>
@@ -43,8 +38,8 @@ bool debug = true;
 
 
 // on the long ec11 these are swapped A 19, B 18
-const int encoderA_pin = 8;
-const int encoderB_pin = 7;
+const int encoderA_pin = 2;
+const int encoderB_pin = 3;
 const int encoderSW_pin = 5;
 // variables for UI state management
 int encoder_pos_last = 0;
@@ -113,7 +108,7 @@ float noteIndex;
 
 
 // The Arduino pin connected to the XSHUT pin of each sensor.
-const uint8_t xshutPins[2] = {3, 4};
+const uint8_t xshutPins[2] = {6, 7};
 
 int led = 10; // for the vactrol
 //  analogReference(DEFAULT);  // 5v
@@ -135,10 +130,10 @@ void setup()
 
   //while (!Serial) {}
   Serial.begin(115200);
-  //Wire1.setSDA(14);
+  //Wire1.setSDA(14); These are for the pi pico
   //Wire1.setSCL(15);
-  Wire.setSDA(0);
-  Wire.setSCL(1);
+  //Wire.setSDA(0);
+  //Wire.setSCL(1);
   
   Wire.begin();
   Wire.setClock(400000); // use 400 kHz I2C
@@ -178,8 +173,8 @@ void setup()
 
   }
   
-  pinMode(23, OUTPUT); // thi is to switch to PWM for power to avoid ripple noise
-  digitalWrite(23, HIGH);
+  //pinMode(23, OUTPUT); // thi is to switch to PWM pi pico for power to avoid ripple noise
+  //digitalWrite(23, HIGH);
 
   // ENCODER
   pinMode(encoderA_pin, INPUT_PULLUP);
@@ -268,7 +263,7 @@ float temp1;
     Serial.print(" TIMEOUT");
   }
 
-  volume = sensors[0].readRangeSingleMillimeters();
+  volume = sensors[0].readRangeContinuousMillimeters();
 
   Serial.println(volume);
   if (volume < 8190.00) {
@@ -290,7 +285,7 @@ float temp1;
      ratio = volume;
   }
 
-  freq_target2 = sensors[1].readRangeSingleMillimeters();
+  freq_target2 = sensors[1].readRangeContinuousMillimeters();
   
   if (freq_target2  < 1300 ) {
     if ( ! continuous ) {
