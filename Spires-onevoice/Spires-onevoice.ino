@@ -58,7 +58,7 @@ AD9833 AD[1] =
 // AD9833 communication pins
 #define GEN_FSYNC1  8                       // Chip select pin for AD9833 1
 #define GEN_FSYNC2  9                       // Chip select pin for AD9833 2
-#define GEN_CLK     13                      // CLK and DATA pins are shared with multiple AD9833.
+#define GEN_CLK     12                      // CLK and DATA pins are shared with multiple AD9833.
 #define GEN_DATA    11
 // AD9833 Waveform Module
 const int SINE = 0x2000;                    // Define AD9833's waveform register value.
