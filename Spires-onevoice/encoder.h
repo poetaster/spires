@@ -2,7 +2,15 @@
    handle encoder button long press event
 */
 void onEb1LongPress(EncoderButton& eb) {
+  if (sine == true) {
+      AD[0].setWave(AD9833_TRIANGLE);
+      sine = false;
+  } else {
+      AD[0].setWave(AD9833_SINE);
+      sine = true;
+  }
 
+  
   if (debug) {
     Serial.print("button1 longPressCount: ");
     Serial.println(eb.longPressCount());
@@ -13,15 +21,18 @@ void onEb1LongPress(EncoderButton& eb) {
    offsets OCR2A
 */
 void onEb1PressTurn(EncoderButton& eb) {
-  enc_delta = eb.increment();
+  //enc_delta = eb.increment();
+  
+  //dir = constrain(dir, 0, 7 );
+  //encoder_delta = eb.increment();
+  //enc_delta = eb.increment();
+  //cSpeed = cSpeed + (eb.increment() * 10 );
+  //sensors[0].setMeasurementTimingBudget(cSpeed);
+  
 
-  int dir = enc_offset + eb.increment();
-  dir = constrain(dir, -7, 7 );
-
-  enc_offset = dir;
   if (debug) {
     Serial.print("eb1 press inc by: ");
-    Serial.println(eb.increment());
+    Serial.println(enc_delta);
     Serial.print("enc_offset is: ");
     Serial.println(enc_offset);
   }
@@ -35,6 +46,25 @@ void onEb1Clicked(EncoderButton& eb) {
   // set which bank to select formulas from
   bank = eb.clickCount();
 
+  if (bank == 1 ) {
+    continuous = false;
+  }
+  if (bank == 2) {
+    continuous = true;
+  }
+  /*
+  if ( prog > numProg-1 ) {
+    prog = 0;
+  } else if ( prog < 0 ) {
+    prog = numProg-1;
+  }
+  for (uint8_t i = 0; i < prog; i++) {
+     analogWrite(led, 255);
+     delay(150);
+     analogWrite(led, 0);
+     delay(250);
+  }
+  */
   if (debug) {
     Serial.print("bank: ");
     Serial.println(eb.clickCount());
@@ -42,78 +72,7 @@ void onEb1Clicked(EncoderButton& eb) {
   // displayUpdate();
 }
 
-/**
-    handle left button short release
-*/
-void onLeftReleased(EncoderButton& left) {
 
-  if (bank == 1)
-  {
-    if (pb1 > 1) {
-      pb1--;
-    } else if (pb1 == 1) {
-      pb1 = pb1total;
-    }
-    prog = pb1;
-  } 
-  else if (bank == 2) {
-    if (pb2 > 1) {
-      pb2--;
-    } else if (pb2 == 1) {
-      pb2 = pb2total;
-    }
-    prog = pb2;
-  } 
-  else if (bank == 3) {
-    if (pb3 > 1) {
-      pb3--;
-    } else if (pb3 == 1) {
-      pb3 = pb3total;
-    }
-    prog = pb3;
-  }
-
-  if (debug) {
-    Serial.print("PROGRAM: ");
-    Serial.println(prog);
-  }
-}
-
-/**
-    handle right button short release
-*/
-void onRightReleased(EncoderButton& right) {
-  
-  if (bank == 1)
-  {
-    if (pb1 < pb1total) {
-      pb1++;
-    } else if (pb1 == pb1total) {
-      pb1 = 1;
-    }
-    prog = pb1;
-  } 
-  else if (bank == 2) {
-    if (pb2 < pb2total) {
-      pb2++;
-    } else if (pb2 == pb2total) {
-      pb2 = 1;
-    }
-    prog = pb2;
-  } 
-  else if (bank == 3) {
-    if (pb3 < pb2total) {
-      pb3++;
-    } else if (pb3 == pb3total) {
-      pb3 = 1;
-    }
-    prog = pb3;
-  }
-  if (debug) {
-    Serial.print("PROGRAM: ");
-    Serial.println(prog);
-  }
-}
 
 /**
    A function to handle the 'encoder' event without button
@@ -121,12 +80,23 @@ void onRightReleased(EncoderButton& right) {
 void onEb1Encoder(EncoderButton& eb) {
 
   //displayUpdate();
-  encoder_delta = eb.increment();
   enc_delta = eb.increment();
-
-  prog = constrain(eb.position(), 1, numProg ); // freom main class total progs
   
-  //enc_offset = dir;
+  prog = prog + enc_delta; // freom main class total 
+  if ( prog > numProg-1 ) {
+    prog = 0;
+  } else if ( prog < 0 ) {
+    prog = numProg-1;
+  }
+  //Serial.print("eb1 press inc by: ");
+  Serial.println(enc_delta);
+    
+  for (uint8_t i = 0; i < prog; i++) {
+     analogWrite(led, 255);
+     delay(100);
+     analogWrite(led, 0);
+     delay(200);
+  }
 
   if (debug) {
     Serial.print("eb1 incremented by: ");

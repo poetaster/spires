@@ -12,12 +12,39 @@
 #include <util/crc16.h>
 #include "AD9833.h"
 
+// # define ENCODER_DO_NOT_USE_INTERRUPTS
 #include <EncoderButton.h>
 
-bool debug = true;
+bool debug = false;
+// variables for runtime control
+bool up;
+bool cont = true;
+volatile float lastvol = 255;
+unsigned int lastPos;
+bool continuous = false;
+bool sine = true;
+
+int led = 2; // for display led
+
+unsigned int cSpeed = 70000;
+//  each device needs its own select pin.
+AD9833 AD[1] =
+{
+  AD9833(8),
+  //AD9833(9)
+};  //  4 devices.
+
+// The number of sensors in your system.
+const uint8_t sensorCount = 1; // original used two. switched to ldr for volume
+// The Arduino pin connected to the XSHUT pin of each sensor.
+const uint8_t xshutPins[sensorCount] = {7};
+
+VL53L0X sensors[sensorCount];
+
+
 // encoder
 // the a and b + the button pin large encoders are 6,5,4
-EncoderButton eb1(2, 3, 5);
+EncoderButton eb1(3, 6, 4);
 
 
 /* these come from rampart bytebeats */
@@ -48,12 +75,6 @@ const float ContToFreq[63] PROGMEM = {29.14, 30.87, 32.70, 34.65, 36.71, 38.89, 
                                       466.16, 493.88, 523.25, 554.37, 587.33, 622.25, 659.25, 698.46, 739.99, 783.99, 830.61, 880.00,
                                       932.33, 987.77, 1046.50
                                      };
-//  each device needs its own select pin.
-AD9833 AD[1] =
-{
-  AD9833(8),
-  //AD9833(9)
-};  //  4 devices.
 
 // AD9833 communication pins
 #define GEN_FSYNC1  8                       // Chip select pin for AD9833 1
@@ -98,21 +119,7 @@ float noteIndex;
 
 
 
-int led = 13; // for the vactrol
 //  analogReference(DEFAULT);  // 5v
-// The number of sensors in your system.
-const uint8_t sensorCount = 1; // original used two. switched to ldr for volume
-// The Arduino pin connected to the XSHUT pin of each sensor.
-const uint8_t xshutPins[sensorCount] = {7};
-
-VL53L0X sensors[sensorCount];
-
-// variables for runtime control
-bool up;
-bool cont = true;
-volatile float lastvol = 255;
-bool continuous = false;
-
 
 void setup()
 {
@@ -126,7 +133,7 @@ void setup()
   //analogReference(INTERNAL2V56);
   //pinMode(4, ANALOG);
   // from audio
-  
+
   SPI.begin();
   delay(50);
 
@@ -190,9 +197,9 @@ void setup()
     // the default of 0x29 (except for the last one, which could be left atSerial.println(freq_init1);
     // the default). To make it simple, we'll just count up from 0x2A.
     sensors[i].setAddress(0x2A + i);
-
-    sensors[i].startContinuous(50);
-    sensors[i].setMeasurementTimingBudget(50000); //  adjust this value to move to slower note slurs/jumps
+    //sensors[i].setSignalRateLimit(0.25);
+    sensors[i].startContinuous();
+    sensors[i].setMeasurementTimingBudget(cSpeed); //  adjust this value to move to slower note slurs/jumps
 
   }
 
@@ -204,78 +211,82 @@ void setup()
   eb1.setLongPressHandler(onEb1LongPress, true);
   eb1.setEncoderPressedHandler(onEb1PressTurn);
 
-  //sensors[1].setSignalRateLimit(0.1);
+  //sensors[0].setSignalRateLimit(0.15);
   // increase laser pulse periods (defaults are 14 and 10 PCLKs)
-  // sensors[1].setVcselPulsePeriod(VL53L0X::VcselPeriodPreRange, 18);
-  //sensors[1].setVcselPulsePeriod(VL53L0X::VcselPeriodFinalRange, 14);
-  //sensors[1].setMeasurementTimingBudget(500000);
-  Serial.println(sensors[0].readRangeSingleMillimeters());
-  analogWrite(4, 255);
+  //sensors[0].setVcselPulsePeriod(VL53L0X::VcselPeriodPreRange, 18);
+  //sensors[0].setVcselPulsePeriod(VL53L0X::VcselPeriodFinalRange, 14);
+  //sensors[0].setMeasurementTimingBudget(500000);
+  lastPos = sensors[0].readRangeContinuousMillimeters();
+  //analogWrite(4, 255);
+  continuous = true;
 }
 
 
 void loop()
 {
 
-  eb1.update(); // respond to encoder/button
+
 
   float temp1;
   int temp2;
   int voltemp;
-  
+
   //freq_target1 = sensors[0].readRangeContinuousMillimeters(); //freq_init1;
-  // Serial.print(sensors[0].readRangeSingleMillimeters());
+  //Serial.print(sensors[0].readRangeContinuousMillimeters());
   if (sensors[0].timeoutOccurred()) {
     Serial.print(" TIMEOUT");
   }
-  
+
   //analogWrite(led, volume);
   //analogWrite(4, volume); // D4 is the dac on the LGT8F
   //Serial.println(volume);
 
-  freq_target2 = sensors[0].readRangeSingleMillimeters();
+  freq_target2 = sensors[0].readRangeContinuousMillimeters();
   if (freq_target2  < 1300 ) {
+    
     if ( ! continuous ) {
       //AD[0].setWave(AD9833_TRIANGLE);
-      temp2 = int(map(freq_target2, 0, 1300, 28, 0));
+      if (abs(lastPos - freq_target2) > 5) { // NOT sure
+        temp2 = int(map(freq_target2, 10, 1300, 28, 0));
+        lastPos = freq_target2;
+      }
+      
     } else {
-      //AD[0].setWave(AD9833_SINE);
-      temp2 = map(freq_target2, 0, 1300, 780, 420);
-      //temp2 = map(freq_target2, 10, 1300, 58, 18);
-      //temp2 = pgm_read_float( &ContToFreq[temp2 ]);
+      
+      if (abs(lastPos - freq_target2) > 2) { // NOT sure
+        temp2 = map(freq_target2, 10, 1300, 680, 80);
+        lastPos = freq_target2;
+      }
+      
     }
-    //if (debug) Serial.print("freq:");
-    //if (debug )  Serial.println(temp2);
   }
 
   switch (prog) {
-    case 1:
+    case 0:
       temp1 = pgm_read_float( &IndexToFreq[temp2 ]);
       break;
-    case 2:
+    case 1:
       temp1 = pgm_read_float( &BayatiToFreq[temp2 ]);
       break;
-    case 3:
+    case 2:
       temp1 = pgm_read_float( &nawaAtharToFreq[temp2]);
       break;
-    case 4:
+    case 3:
       temp1 = pgm_read_float( &farafahzaToFreq[temp2 ]);
       break;
-    case 5:
+    case 4:
       temp1 = pgm_read_float( &nikrizToFreq[temp2 ]);
       break;
-    case 6:
+    case 5:
       temp1 = pgm_read_float( &phrygianToFreq[temp2 ]);
       break;
-    case 7:
+    case 6:
       temp1 = pgm_read_float( &romaMinorToFreq[temp2 ]);
       break;
-    case 8:
+    case 7:
       temp1 = pgm_read_float( &partch1ToFreq[temp2 ]);
       break;
   }
-
-
   // here we either glide up or down
   if ( temp1 < 1600  && temp1 > 30 && continuous == false) {
     if (freq_init1 > temp1) {
@@ -285,20 +296,23 @@ void loop()
       cont = GlideFreq(freq_init1, temp1, true);
     }
     freq_init1 = temp1;
-  } else if (temp2 < 800  && temp2 > 100 && continuous == true ) { //&& abs(freq_init1 - temp2) > 5 ) {
+  } else if ( temp2 < 700 && temp2 > 80 && continuous == true ) { //&& abs(freq_init1 - temp2) > 5 ) {
+    
     if (freq_init1 > temp2) {
       cont = GlideContinuous(freq_init1, temp2, false);
 
     } else if (freq_init1 < temp2) {
       cont = GlideContinuous(freq_init1, temp2, true);
     }
+    
     freq_init1 = temp2;
   }
   while (cont == false) {
     ; //nop
   }
 
-
+  eb1.update(); // respond to encoder/button
+  //delay(10);
 }
 // END LOOP
 
@@ -338,7 +352,7 @@ bool GlideContinuous(float from, float too, bool up) {
     while (from < too) {
       AD[0].setFrequency(from);
       //AD[1].setFrequency(from * freq_offset);
-      from = from + 0.1;
+      from = from + 0.07;
 
     }
     // complete since while may exit early
@@ -349,7 +363,7 @@ bool GlideContinuous(float from, float too, bool up) {
     while (from > too) {
       AD[0].setFrequency(from);
       //AD[1].setFrequency(from * freq_offset);
-      from = from - 0.1;
+      from = from - 0.07;
 
     }
     // complete since while may exit early
