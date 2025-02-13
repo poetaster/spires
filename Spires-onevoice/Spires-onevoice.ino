@@ -54,15 +54,15 @@ int enc_offset = 1; // changes direction
 int enc_delta; // which direction
 //for program switching
 int prog = 1;
-int bank = 1;
+int bank = 0;
 int pb1 = 1;
-int pb1total = 8;
+int pb1total = 6;
 int pb2 = 1;
-int pb2total = 28;
+int pb2total = 6;
 int pb3 = 1;
-int pb3total = 20;
+int pb3total = 6;
 
-int numProg = 8;
+int numProg = 18;
 int numBank = 3;
 
 #include "encoder.h"
@@ -226,63 +226,99 @@ void setup()
 void loop()
 {
 
-
-
   float temp1;
   int temp2;
-  int voltemp;
-
+  
   //freq_target1 = sensors[0].readRangeContinuousMillimeters(); //freq_init1;
-  //Serial.print(sensors[0].readRangeContinuousMillimeters());
   if (sensors[0].timeoutOccurred()) {
     Serial.print(" TIMEOUT");
   }
 
-  //analogWrite(led, volume);
   //analogWrite(4, volume); // D4 is the dac on the LGT8F
-  //Serial.println(volume);
 
   freq_target2 = sensors[0].readRangeContinuousMillimeters();
   if (freq_target2  < 1300 ) {
-    
+
     if ( ! continuous ) {
-      //AD[0].setWave(AD9833_TRIANGLE);
       if (abs(lastPos - freq_target2) > 10) { // NOT sure
         temp2 = int(map(freq_target2, 10, 1300, 28, 0));
       }
       lastPos = freq_target2;
-    } else { 
-      temp2 = map(freq_target2, 10, 1300, 680, 40);  
+    } else {
+      temp2 = map(freq_target2, 10, 1300, 680, 40);
       lastPos = freq_target2;
-      
+
     }
   }
 
-  switch (prog) {
+  switch (bank) {
     case 0:
-      temp1 = pgm_read_float( &IndexToFreq[temp2 ]);
+      switch (pb1) {
+        case 0:
+          temp1 = pgm_read_float( &Nahawand[temp2 ]);
+          break;
+        case 1:
+          temp1 = pgm_read_float( &Bayati[temp2 ]);
+          break;
+        case 2:
+          temp1 = pgm_read_float( &NawaAthar[temp2]);
+          break;
+        case 3:
+          temp1 = pgm_read_float( &Farafahza[temp2 ]);
+          break;
+        case 4:
+          temp1 = pgm_read_float( &Nikriz[temp2 ]);
+          break;
+        case 5:
+          temp1 = pgm_read_float( &Bhairav[temp2 ]);
+          break;
+      }
       break;
     case 1:
-      temp1 = pgm_read_float( &BayatiToFreq[temp2 ]);
+      switch (pb2) {
+        case 0:
+          temp1 = pgm_read_float( &PhrygianFreq[temp2 ]);
+          break;
+        case 1:
+          temp1 = pgm_read_float( &RomanMinor[temp2 ]);
+          break;
+        case 2:
+          temp1 = pgm_read_float( &NeapolitanMinor[temp2 ]);
+          break;
+        case 3:
+          temp1 = pgm_read_float( &MelodicMinor[temp2 ]);
+          break;
+        case 4:
+         temp1 = pgm_read_float( &Spanish[temp2 ]);  
+          break;
+        case 5:
+          temp1 = pgm_read_float( &LydianMinor[temp2 ]); 
+          break;
+      }
       break;
     case 2:
-      temp1 = pgm_read_float( &nawaAtharToFreq[temp2]);
+      switch (pb3) {
+        case 0:
+          temp1 = pgm_read_float( &Suznak[temp2 ]);
+          break;
+        case 1:
+          temp1 = pgm_read_float( &Zamzam[temp2 ]);
+          break;
+        case 2:
+          temp1 = pgm_read_float( &KijazKarKurd[temp2 ]); 
+          break;
+        case 3:
+          temp1 = pgm_read_float( &RomanianMinor[temp2 ]);
+          break;
+        case 4:
+          temp1 = pgm_read_float( &Enigmatic[temp2 ]);
+          break;
+        case 5:
+          temp1 = pgm_read_float( Partch1[temp2 ]);
+          break;
+      }
       break;
-    case 3:
-      temp1 = pgm_read_float( &farafahzaToFreq[temp2 ]);
-      break;
-    case 4:
-      temp1 = pgm_read_float( &nikrizToFreq[temp2 ]);
-      break;
-    case 5:
-      temp1 = pgm_read_float( &phrygianToFreq[temp2 ]);
-      break;
-    case 6:
-      temp1 = pgm_read_float( &romaMinorToFreq[temp2 ]);
-      break;
-    case 7:
-      temp1 = pgm_read_float( &partch1ToFreq[temp2 ]);
-      break;
+
   }
   // here we either glide up or down
   if ( temp1 < 1600  && temp1 > 30 && continuous == false) {
@@ -301,7 +337,7 @@ void loop()
     } else if (freq_init1 < temp2) {
       cont = GlideContinuous(freq_init1, temp2, true);
     }
-    
+
     freq_init1 = temp2;
   }
   while (cont == false) {

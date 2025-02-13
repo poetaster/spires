@@ -37,8 +37,8 @@ void onEb1PressTurn(EncoderButton& eb) {
   } else if ( bank < 0 ) {
     bank = numBank-1;
   }
-  //Serial.print("eb1 press inc by: ");
-  //Serial.println(bank);
+  Serial.print("bank: ");
+  Serial.println(bank);
     
   for (uint8_t i = 0; i <= bank; i++) {
      analogWrite(led, 255);
@@ -94,14 +94,38 @@ void onEb1Encoder(EncoderButton& eb) {
   //displayUpdate();
   enc_delta = eb.increment();
   
-  prog = prog + enc_delta; // freom main class total 
-  if ( prog > numProg -1 ) {
-    prog = 0;
-  } else if ( prog < 0 ) {
-    prog = numProg-1;
+  //prog = prog + enc_delta; // freom main class total 
+  
+  if (bank == 0)
+  {
+    pb1 = pb1 + enc_delta;
+    if (pb1 == pb1total) {
+      pb1 = 1;
+    } else if (pb1 < 0) {
+      pb1 = pb1total-1;
+    }
+    prog = pb1;
+  } 
+  else if (bank == 1) {
+    pb2 = pb2 + enc_delta;
+    if (pb2 == pb2total) {
+      pb2 = 1;
+    } else if (pb2 < 0) {
+      pb2 = pb2total - 1;
+    }
+    prog = pb2;
+  } 
+  else if (bank == 2) {
+     pb3 = pb3 + enc_delta;
+    if (pb3 == pb2total) {
+      pb3 = 1;
+    } else if (pb3 < 0) {
+      pb3 = pb2total -1;
+    }
+    prog = pb3;
   }
-  //Serial.print("eb1 press inc by: ");
-  //Serial.println(prog);
+  Serial.print("prog: ");
+  Serial.println(prog);
     
   for (uint8_t i = 0; i <= prog; i++) {
      analogWrite(led, 255);
