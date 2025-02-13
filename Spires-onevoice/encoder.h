@@ -48,9 +48,11 @@ void onEb1Clicked(EncoderButton& eb) {
 
   if (bank == 1 ) {
     continuous = false;
+        cSpeed = 200000;
   }
   if (bank == 2) {
     continuous = true;
+    cSpeed = 100000;
   }
   /*
   if ( prog > numProg-1 ) {

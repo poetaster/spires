@@ -26,7 +26,7 @@ bool sine = true;
 
 int led = 2; // for display led
 
-unsigned int cSpeed = 70000;
+unsigned int cSpeed = 200000;
 //  each device needs its own select pin.
 AD9833 AD[1] =
 {
@@ -198,7 +198,7 @@ void setup()
     // the default). To make it simple, we'll just count up from 0x2A.
     sensors[i].setAddress(0x2A + i);
     //sensors[i].setSignalRateLimit(0.25);
-    sensors[i].startContinuous();
+    sensors[i].startContinuous(100);
     sensors[i].setMeasurementTimingBudget(cSpeed); //  adjust this value to move to slower note slurs/jumps
 
   }
@@ -246,17 +246,16 @@ void loop()
     
     if ( ! continuous ) {
       //AD[0].setWave(AD9833_TRIANGLE);
-      if (abs(lastPos - freq_target2) > 5) { // NOT sure
+      if (abs(lastPos - freq_target2) > 10) { // NOT sure
         temp2 = int(map(freq_target2, 10, 1300, 28, 0));
-        lastPos = freq_target2;
       }
-      
+      lastPos = freq_target2;
     } else {
       
       if (abs(lastPos - freq_target2) > 2) { // NOT sure
-        temp2 = map(freq_target2, 10, 1300, 680, 80);
-        lastPos = freq_target2;
+        temp2 = map(freq_target2, 10, 1300, 680, 80);  
       }
+      lastPos = freq_target2;
       
     }
   }
