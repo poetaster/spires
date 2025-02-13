@@ -63,6 +63,7 @@ int pb3 = 1;
 int pb3total = 20;
 
 int numProg = 8;
+int numBank = 3;
 
 #include "encoder.h"
 
@@ -218,7 +219,7 @@ void setup()
   //sensors[0].setMeasurementTimingBudget(500000);
   lastPos = sensors[0].readRangeContinuousMillimeters();
   //analogWrite(4, 255);
-  continuous = true;
+  continuous = false;
 }
 
 
@@ -250,11 +251,8 @@ void loop()
         temp2 = int(map(freq_target2, 10, 1300, 28, 0));
       }
       lastPos = freq_target2;
-    } else {
-      
-      if (abs(lastPos - freq_target2) > 2) { // NOT sure
-        temp2 = map(freq_target2, 10, 1300, 680, 80);  
-      }
+    } else { 
+      temp2 = map(freq_target2, 10, 1300, 680, 40);  
       lastPos = freq_target2;
       
     }
@@ -296,7 +294,7 @@ void loop()
     }
     freq_init1 = temp1;
   } else if ( temp2 < 700 && temp2 > 80 && continuous == true ) { //&& abs(freq_init1 - temp2) > 5 ) {
-    
+    //temp2 = pgm_read_float( &ContToFreq[temp2 ] ); //ContToFreq
     if (freq_init1 > temp2) {
       cont = GlideContinuous(freq_init1, temp2, false);
 

@@ -5,9 +5,17 @@ void onEb1LongPress(EncoderButton& eb) {
   if (sine == true) {
       AD[0].setWave(AD9833_TRIANGLE);
       sine = false;
+      analogWrite(led, 255);
+      delay(250);
+      analogWrite(led, 0);
+      delay(250);
   } else {
       AD[0].setWave(AD9833_SINE);
       sine = true;
+      analogWrite(led, 255);
+      delay(300);
+      analogWrite(led, 0);
+      delay(300);
   }
 
   
@@ -21,14 +29,23 @@ void onEb1LongPress(EncoderButton& eb) {
    offsets OCR2A
 */
 void onEb1PressTurn(EncoderButton& eb) {
-  //enc_delta = eb.increment();
+  enc_delta = eb.increment();
   
-  //dir = constrain(dir, 0, 7 );
-  //encoder_delta = eb.increment();
-  //enc_delta = eb.increment();
-  //cSpeed = cSpeed + (eb.increment() * 10 );
-  //sensors[0].setMeasurementTimingBudget(cSpeed);
-  
+  bank = bank + enc_delta; // freom main class total 
+  if ( bank > numBank -1 ) {
+    bank = 0;
+  } else if ( bank < 0 ) {
+    bank = numBank-1;
+  }
+  //Serial.print("eb1 press inc by: ");
+  //Serial.println(bank);
+    
+  for (uint8_t i = 0; i <= bank; i++) {
+     analogWrite(led, 255);
+     delay(250);
+     analogWrite(led, 0);
+     delay(230);
+  }
 
   if (debug) {
     Serial.print("eb1 press inc by: ");
@@ -44,29 +61,22 @@ void onEb1PressTurn(EncoderButton& eb) {
 void onEb1Clicked(EncoderButton& eb) {
 
   // set which bank to select formulas from
-  bank = eb.clickCount();
+  int type = eb.clickCount();
 
-  if (bank == 1 ) {
-    continuous = false;
-        cSpeed = 200000;
-  }
-  if (bank == 2) {
+  if (type == 1 ) {
     continuous = true;
-    cSpeed = 100000;
+        cSpeed = 50000;
   }
-  /*
-  if ( prog > numProg-1 ) {
-    prog = 0;
-  } else if ( prog < 0 ) {
-    prog = numProg-1;
+  if (type == 2) {
+    continuous = false;
+    cSpeed = 200000;
   }
-  for (uint8_t i = 0; i < prog; i++) {
+  for (uint8_t i = 0; i < type; i++) {
      analogWrite(led, 255);
-     delay(150);
+     delay(75);
      analogWrite(led, 0);
-     delay(250);
+     delay(100);
   }
-  */
   if (debug) {
     Serial.print("bank: ");
     Serial.println(eb.clickCount());
@@ -85,19 +95,19 @@ void onEb1Encoder(EncoderButton& eb) {
   enc_delta = eb.increment();
   
   prog = prog + enc_delta; // freom main class total 
-  if ( prog > numProg-1 ) {
+  if ( prog > numProg -1 ) {
     prog = 0;
   } else if ( prog < 0 ) {
     prog = numProg-1;
   }
   //Serial.print("eb1 press inc by: ");
-  Serial.println(enc_delta);
+  //Serial.println(prog);
     
-  for (uint8_t i = 0; i < prog; i++) {
+  for (uint8_t i = 0; i <= prog; i++) {
      analogWrite(led, 255);
      delay(100);
      analogWrite(led, 0);
-     delay(200);
+     delay(140);
   }
 
   if (debug) {
