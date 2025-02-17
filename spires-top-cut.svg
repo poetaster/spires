@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Fritzing (https://fritzing.org/) -->
+
+<svg
+   height="2.4119849in"
+   version="1.2"
+   viewBox="0 0 162.32392 173.66308"
+   width="2.254499in"
+   x="0in"
+   y="0in"
+   id="svg8776"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <defs
+     id="defs8780" />
+  <g
+     partID="868397161"
+     id="g8727"
+     transform="translate(-10.461701,0.37499903)"
+     style="display:inline">
+    <g
+       transform="translate(10.8367)"
+       id="g8725">
+      <g
+         transform="translate(-1.3625,-1.56326)"
+         id="g8723">
+        <g
+           id="g13536">
+          <g
+             id="g8720">
+            <path
+               id="silkscreen"
+               style="display:inline;fill:none;stroke:#000000;stroke-width:0.749998"
+               d="M 7.7037299,1.56326 H 156.59528 c 3.51304,0 6.34123,1.4948493 6.34123,3.35168 v 166.20963 c 0,1.85684 -2.82819,3.35168 -6.34123,3.35168 H 7.7037299 c -3.5130414,0 -6.3412299,-1.49484 -6.3412299,-3.35168 V 4.91494 c 0,-1.8568307 2.8281885,-3.35168 6.3412299,-3.35168 z" />
+          </g>
+        </g>
+      </g>
+    </g>
+  </g>
+  <g
+     partID="868397162"
+     id="g8582"
+     transform="translate(-10.461701,0.37499903)"
+     style="display:inline">
+    <g
+       transform="translate(10.8367)"
+       id="g8580">
+      <g
+         transform="translate(-1.3625,-1.56326)"
+         id="g8578">
+        <g
+           id="g11050"
+           style="stroke-width:0.99975;stroke-miterlimit:4;stroke-dasharray:none">
+          <g
+             id="g8575"
+             style="stroke-width:0.99975;stroke-miterlimit:4;stroke-dasharray:none">
+            <path
+               id="silkscreen0"
+               style="display:inline;fill:none;stroke:#000000;stroke-width:0.75;stroke-miterlimit:4;stroke-dasharray:none"
+               d="M 7.7037299,1.56326 H 156.59528 c 3.51304,0 6.34123,1.4948493 6.34123,3.35168 v 166.20963 c 0,1.85684 -2.82819,3.35168 -6.34123,3.35168 H 7.7037299 c -3.5130414,0 -6.3412299,-1.49484 -6.3412299,-3.35168 V 4.91494 c 0,-1.8568307 2.8281885,-3.35168 6.3412299,-3.35168 z" />
+          </g>
+        </g>
+      </g>
+    </g>
+  </g>
+  <g
+     partID="868397160"
+     id="g8612"
+     transform="translate(-10.461701,0.37499903)"
+     style="display:inline;stroke:#070604;stroke-width:0.75;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1">
+    <g
+       transform="translate(10.8367)"
+       id="g8610"
+       style="stroke:#070604;stroke-width:0.75;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1">
+      <g
+         transform="translate(-1.3625,-1.56326)"
+         id="g8608"
+         style="display:inline;stroke:#070604;stroke-width:0.75;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1">
+        <g
+           id="board"
+           style="stroke:#070604;stroke-width:0.75;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1">
+          <g
+             id="g8605"
+             style="stroke:#070604;stroke-width:0.75;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1">
+            <g
+               id="layer2"
+               style="display:inline;stroke:#070604;stroke-width:0.75;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1">
+              <path
+                 id="boardoutline"
+                 style="display:inline;fill:#0088d4;stroke:none;stroke-width:1;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+                 d="M 8.9550781,0.5 C 4.2710251,0.5 0.5,2.4929769 0.5,4.96875 v 221.61328 c 0,2.47579 3.7710251,4.46875 8.4550781,4.46875 H 207.47656 c 4.68405,0 8.45508,-1.99296 8.45508,-4.46875 V 4.96875 C 215.93164,2.4929769 212.16061,0.5 207.47656,0.5 Z M 70.873047,18.625 A 11.338554,11.338554 0 0 1 82.210938,29.964844 11.338554,11.338554 0 0 1 70.873047,41.302734 11.338554,11.338554 0 0 1 59.535156,29.964844 11.338554,11.338554 0 0 1 70.873047,18.625 Z m 36.076173,7.996094 a 6.0472372,6.0472372 0 0 1 6.04687,6.046875 6.0472372,6.0472372 0 0 1 -6.04687,6.046875 6.0472372,6.0472372 0 0 1 -6.04883,-6.046875 6.0472372,6.0472372 0 0 1 6.04883,-6.046875 z m 80.1875,13.037109 a 13.60626,13.60626 0 0 1 13.60742,13.605469 13.60626,13.60626 0 0 1 -13.60742,13.605469 13.60626,13.60626 0 0 1 -13.60547,-13.605469 13.60626,13.60626 0 0 1 13.60547,-13.605469 z m -45.19531,48.832031 h 20.78711 v 9.449219 H 141.94141 Z M 106.94922,195.38867 a 6.0472372,6.0472372 0 0 1 6.04687,6.04688 6.0472372,6.0472372 0 0 1 -6.04687,6.04883 6.0472372,6.0472372 0 0 1 -6.04883,-6.04883 6.0472372,6.0472372 0 0 1 6.04883,-6.04688 z m -69.013673,3.70117 a 11.716502,11.716502 0 0 1 11.716797,11.7168 11.716502,11.716502 0 0 1 -11.716797,11.71484 11.716502,11.716502 0 0 1 -11.716797,-11.71484 11.716502,11.716502 0 0 1 11.716797,-11.7168 z"
+                 transform="matrix(0.75000035,0,0,0.75000035,0.987501,1.188261)" />
+            </g>
+          </g>
+        </g>
+      </g>
+    </g>
+  </g>
+</svg>
