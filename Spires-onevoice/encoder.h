@@ -129,9 +129,9 @@ void onEb1Encoder(EncoderButton& eb) {
     
   for (uint8_t i = 0; i <= prog; i++) {
      analogWrite(led, 255);
-     delay(100);
+     delay(80);
      analogWrite(led, 0);
-     delay(140);
+     delay(100);
   }
 
   if (debug) {

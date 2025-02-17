@@ -26,7 +26,7 @@ bool sine = true;
 
 int led = 2; // for display led
 
-unsigned int cSpeed = 200000;
+unsigned int cSpeed = 190000;
 //  each device needs its own select pin.
 AD9833 AD[1] =
 {
@@ -53,13 +53,13 @@ long encoder_delta = 0;
 int enc_offset = 1; // changes direction
 int enc_delta; // which direction
 //for program switching
-int prog = 1;
+int prog = 0;
 int bank = 0;
-int pb1 = 1;
+int pb1 = 0;
 int pb1total = 6;
-int pb2 = 1;
+int pb2 = 0;
 int pb2total = 6;
-int pb3 = 1;
+int pb3 = 0;
 int pb3total = 6;
 
 int numProg = 18;
@@ -198,9 +198,12 @@ void setup()
     // the default of 0x29 (except for the last one, which could be left atSerial.println(freq_init1);
     // the default). To make it simple, we'll just count up from 0x2A.
     sensors[i].setAddress(0x2A + i);
-    //sensors[i].setSignalRateLimit(0.25);
-    sensors[i].startContinuous(100);
+    sensors[i].setSignalRateLimit(0.25);
+    sensors[i].startContinuous(75);
     sensors[i].setMeasurementTimingBudget(cSpeed); //  adjust this value to move to slower note slurs/jumps
+      // increase laser pulse periods (defaults are 14 and 10 PCLKs)
+    //sensors[i].setVcselPulsePeriod(VL53L0X::VcselPeriodPreRange, 18);
+    //sensors[i].setVcselPulsePeriod(VL53L0X::VcselPeriodFinalRange, 14);
 
   }
 
@@ -213,11 +216,10 @@ void setup()
   eb1.setEncoderPressedHandler(onEb1PressTurn);
 
   //sensors[0].setSignalRateLimit(0.15);
-  // increase laser pulse periods (defaults are 14 and 10 PCLKs)
-  //sensors[0].setVcselPulsePeriod(VL53L0X::VcselPeriodPreRange, 18);
-  //sensors[0].setVcselPulsePeriod(VL53L0X::VcselPeriodFinalRange, 14);
+
   //sensors[0].setMeasurementTimingBudget(500000);
   lastPos = sensors[0].readRangeContinuousMillimeters();
+  if (debug) Serial.println(lastPos);
   //analogWrite(4, 255);
   continuous = false;
 }
@@ -231,21 +233,23 @@ void loop()
   
   //freq_target1 = sensors[0].readRangeContinuousMillimeters(); //freq_init1;
   if (sensors[0].timeoutOccurred()) {
-    Serial.print(" TIMEOUT");
+    if (debug) Serial.print(" TIMEOUT");
   }
 
   //analogWrite(4, volume); // D4 is the dac on the LGT8F
-
+  // readRangeContinuousMillimeters
   freq_target2 = sensors[0].readRangeContinuousMillimeters();
-  if (freq_target2  < 1300 ) {
+  
+  if (freq_target2  < 600 ) {
+    if (debug) Serial.println(freq_target2);
 
     if ( ! continuous ) {
-      if (abs(lastPos - freq_target2) > 10) { // NOT sure
-        temp2 = int(map(freq_target2, 10, 1300, 28, 0));
+      if (abs(lastPos - freq_target2) > 12) { // NOT sure
+        temp2 = int(map(freq_target2, 10, 600, 28, 0));
       }
       lastPos = freq_target2;
     } else {
-      temp2 = map(freq_target2, 10, 1300, 680, 40);
+      temp2 = map(freq_target2, 10, 600, 680, 40);
       lastPos = freq_target2;
 
     }
@@ -357,7 +361,7 @@ bool GlideFreq(float from, float too, bool up) {
     while (from < too) {
       AD[0].setFrequency(from);
       //AD[1].setFrequency(from * freq_offset);
-      from = from + 0.3;
+      from = from + 0.5;
 
     }
     // complete since while may exit early
@@ -368,7 +372,7 @@ bool GlideFreq(float from, float too, bool up) {
     while (from > too) {
       AD[0].setFrequency(from);
       //AD[1].setFrequency(from * freq_offset);
-      from = from - 0.3;
+      from = from - 0.5;
 
     }
     // complete since while may exit early
