@@ -26,7 +26,7 @@ bool sine = true;
 
 int led = 2; // for display led
 
-unsigned int cSpeed = 190000;
+unsigned int cSpeed = 200000;
 //  each device needs its own select pin.
 AD9833 AD[1] =
 {
@@ -199,7 +199,7 @@ void setup()
     // the default). To make it simple, we'll just count up from 0x2A.
     sensors[i].setAddress(0x2A + i);
     sensors[i].setSignalRateLimit(0.25);
-    sensors[i].startContinuous(75);
+    sensors[i].startContinuous(50);
     sensors[i].setMeasurementTimingBudget(cSpeed); //  adjust this value to move to slower note slurs/jumps
       // increase laser pulse periods (defaults are 14 and 10 PCLKs)
     //sensors[i].setVcselPulsePeriod(VL53L0X::VcselPeriodPreRange, 18);
@@ -240,16 +240,16 @@ void loop()
   // readRangeContinuousMillimeters
   freq_target2 = sensors[0].readRangeContinuousMillimeters();
   
-  if (freq_target2  < 600 ) {
+  if (freq_target2  < 700 ) {
     if (debug) Serial.println(freq_target2);
 
     if ( ! continuous ) {
-      if (abs(lastPos - freq_target2) > 12) { // NOT sure
-        temp2 = int(map(freq_target2, 10, 600, 28, 0));
+      if (abs(lastPos - freq_target2) > 15) { // NOT sure
+        temp2 = int(map(freq_target2, 10, 700, 28, 0));
       }
       lastPos = freq_target2;
     } else {
-      temp2 = map(freq_target2, 10, 600, 680, 40);
+      temp2 = map(freq_target2, 10, 700, 680, 40);
       lastPos = freq_target2;
 
     }
