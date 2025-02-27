@@ -240,17 +240,19 @@ void loop()
   // readRangeContinuousMillimeters
   freq_target2 = sensors[0].readRangeContinuousMillimeters();
   
-  if (freq_target2  < 700 ) {
+  if (freq_target2  < 420 ) {
     if (debug) Serial.println(freq_target2);
 
     if ( ! continuous ) {
-      if (abs(lastPos - freq_target2) > 15) { // NOT sure
-        temp2 = int(map(freq_target2, 10, 700, 28, 0));
+      if (abs(lastPos - freq_target2) > 8) { // NOT sure
+        temp2 = int(map(freq_target2, 0, 420, 23, 0));
       }
       lastPos = freq_target2;
     } else {
-      temp2 = map(freq_target2, 10, 700, 680, 40);
-      lastPos = freq_target2;
+      if (abs(lastPos - freq_target2) > 1) { // NOT sure
+        temp2 = map(freq_target2, 0, 420, 560, 120);
+      }
+        lastPos = freq_target2;
 
     }
   }
@@ -333,7 +335,7 @@ void loop()
       cont = GlideFreq(freq_init1, temp1, true);
     }
     freq_init1 = temp1;
-  } else if ( temp2 < 700 && temp2 > 80 && continuous == true ) { //&& abs(freq_init1 - temp2) > 5 ) {
+  } else if ( temp2 < 500 && temp2 > 79 && continuous == true ) { //&& abs(freq_init1 - temp2) > 5 ) {
     //temp2 = pgm_read_float( &ContToFreq[temp2 ] ); //ContToFreq
     if (freq_init1 > temp2) {
       cont = GlideContinuous(freq_init1, temp2, false);
@@ -361,7 +363,7 @@ bool GlideFreq(float from, float too, bool up) {
     while (from < too) {
       AD[0].setFrequency(from);
       //AD[1].setFrequency(from * freq_offset);
-      from = from + 0.5;
+      from = from + 0.9;
 
     }
     // complete since while may exit early
@@ -372,7 +374,7 @@ bool GlideFreq(float from, float too, bool up) {
     while (from > too) {
       AD[0].setFrequency(from);
       //AD[1].setFrequency(from * freq_offset);
-      from = from - 0.5;
+      from = from - 0.9;
 
     }
     // complete since while may exit early
@@ -389,7 +391,7 @@ bool GlideContinuous(float from, float too, bool up) {
     while (from < too) {
       AD[0].setFrequency(from);
       //AD[1].setFrequency(from * freq_offset);
-      from = from + 0.07;
+      from = from + 0.06;
 
     }
     // complete since while may exit early
@@ -400,7 +402,7 @@ bool GlideContinuous(float from, float too, bool up) {
     while (from > too) {
       AD[0].setFrequency(from);
       //AD[1].setFrequency(from * freq_offset);
-      from = from - 0.07;
+      from = from - 0.06;
 
     }
     // complete since while may exit early

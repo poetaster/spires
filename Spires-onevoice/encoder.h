@@ -99,8 +99,8 @@ void onEb1Encoder(EncoderButton& eb) {
   if (bank == 0)
   {
     pb1 = pb1 + enc_delta;
-    if (pb1 == pb1total) {
-      pb1 = 1;
+    if (pb1 > pb1total-1) {
+      pb1 = 0;
     } else if (pb1 < 0) {
       pb1 = pb1total-1;
     }
@@ -108,8 +108,8 @@ void onEb1Encoder(EncoderButton& eb) {
   } 
   else if (bank == 1) {
     pb2 = pb2 + enc_delta;
-    if (pb2 == pb2total) {
-      pb2 = 1;
+    if (pb2 > pb2total - 1) {
+      pb2 = 0;
     } else if (pb2 < 0) {
       pb2 = pb2total - 1;
     }
@@ -117,8 +117,8 @@ void onEb1Encoder(EncoderButton& eb) {
   } 
   else if (bank == 2) {
      pb3 = pb3 + enc_delta;
-    if (pb3 == pb2total) {
-      pb3 = 1;
+    if (pb3 > pb3total-1) {
+      pb3 = 0;
     } else if (pb3 < 0) {
       pb3 = pb2total -1;
     }
