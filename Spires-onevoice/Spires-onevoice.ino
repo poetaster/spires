@@ -8,6 +8,8 @@
 #include <SPI.h>
 #include <Wire.h>
 #include <VL53L0X.h>
+#include <MIDI.h>
+
 #include <math.h>
 #include <util/crc16.h>
 #include "AD9833.h"
@@ -15,7 +17,7 @@
 // # define ENCODER_DO_NOT_USE_INTERRUPTS
 #include <EncoderButton.h>
 
-bool debug = false;
+bool debug = true;
 // variables for runtime control
 bool up;
 bool cont = true;
@@ -26,7 +28,10 @@ bool sine = true;
 
 int led = 2; // for display led
 
-unsigned int cSpeed = 200000;
+//MIDI_CREATE_DEFAULT_INSTANCE();
+int midiChannel = 1;  // Define which MIDI channel to transmit on (1 to 16).
+
+unsigned int cSpeed = 100000;
 //  each device needs its own select pin.
 AD9833 AD[1] =
 {
@@ -77,10 +82,13 @@ const float ContToFreq[63] PROGMEM = {29.14, 30.87, 32.70, 34.65, 36.71, 38.89, 
                                       932.33, 987.77, 1046.50
                                      };
 
-// AD9833 communication pins
-#define GEN_FSYNC1  8                       // Chip select pin for AD9833 1
-#define GEN_FSYNC2  9                       // Chip select pin for AD9833 2
-#define GEN_CLK     12                      // CLK and DATA pins are shared with multiple AD9833.
+static const uint32_t midi_note_at_zero_volts = 12;
+
+static const float semitones_per_octave = 12.0f;
+static const float volts_per_semitone = 1.0f / semitones_per_octave;
+static const float a4_frequency = 440.0f;
+static const uint32_t a4_midi_note = 69;
+
 #define GEN_DATA    11
 // AD9833 Waveform Module
 const int SINE = 0x2000;                    // Define AD9833's waveform register value.
@@ -122,6 +130,10 @@ float noteIndex;
 
 //  analogReference(DEFAULT);  // 5v
 
+// we have to slow it down :)
+unsigned long startMillis;
+unsigned long currentMillis;
+const unsigned long period = 100;
 void setup()
 {
 
@@ -139,14 +151,12 @@ void setup()
   delay(50);
 
   //while (!Serial) {}
-  Serial.begin(115200);
+  
+  //MIDI.begin(1);
+  if (debug) Serial.begin(115200);
+  
   Wire.begin();
   Wire.setClock(400000); // use 400 kHz I2C
-
-  Serial.println(__FILE__);
-  Serial.print("AD9833_LIB_VERSION: ");
-  Serial.println(AD9833_LIB_VERSION);
-  Serial.println();
 
   // start amp first
   //AMP.begin(10, 14);
@@ -198,12 +208,12 @@ void setup()
     // the default of 0x29 (except for the last one, which could be left atSerial.println(freq_init1);
     // the default). To make it simple, we'll just count up from 0x2A.
     sensors[i].setAddress(0x2A + i);
-    sensors[i].setSignalRateLimit(0.25);
+    //sensors[i].setSignalRateLimit(0.25);
     sensors[i].startContinuous(50);
     sensors[i].setMeasurementTimingBudget(cSpeed); //  adjust this value to move to slower note slurs/jumps
-      // increase laser pulse periods (defaults are 14 and 10 PCLKs)
-    //sensors[i].setVcselPulsePeriod(VL53L0X::VcselPeriodPreRange, 18);
-    //sensors[i].setVcselPulsePeriod(VL53L0X::VcselPeriodFinalRange, 14);
+    // increase laser pulse periods (defaults are 14 and 10 PCLKs) 18/14
+    //sensors[i].setVcselPulsePeriod(VL53L0X::VcselPeriodPreRange, 14);
+    //sensors[i].setVcselPulsePeriod(VL53L0X::VcselPeriodFinalRange, 10);
 
   }
 
@@ -215,13 +225,11 @@ void setup()
   eb1.setLongPressHandler(onEb1LongPress, true);
   eb1.setEncoderPressedHandler(onEb1PressTurn);
 
-  //sensors[0].setSignalRateLimit(0.15);
-
-  //sensors[0].setMeasurementTimingBudget(500000);
   lastPos = sensors[0].readRangeContinuousMillimeters();
   if (debug) Serial.println(lastPos);
   //analogWrite(4, 255);
   continuous = false;
+  startMillis = millis();
 }
 
 
@@ -230,128 +238,139 @@ void loop()
 
   float temp1;
   int temp2;
-  
+  currentMillis = millis();
+
   //freq_target1 = sensors[0].readRangeContinuousMillimeters(); //freq_init1;
   if (sensors[0].timeoutOccurred()) {
     if (debug) Serial.print(" TIMEOUT");
   }
+  currentMillis = millis();  //get the current "time" (actually the number of milliseconds since the program started)
 
-  //analogWrite(4, volume); // D4 is the dac on the LGT8F
-  // readRangeContinuousMillimeters
-  freq_target2 = sensors[0].readRangeContinuousMillimeters();
-  
-  if (freq_target2  < 420 ) {
-    if (debug) Serial.println(freq_target2);
+  if (currentMillis - startMillis >= period)  //test whether the period has elapsed
+  {
 
-    if ( ! continuous ) {
-      if (abs(lastPos - freq_target2) > 8) { // NOT sure
-        temp2 = int(map(freq_target2, 0, 420, 23, 0));
-      }
-      lastPos = freq_target2;
-    } else {
-      if (abs(lastPos - freq_target2) > 1) { // NOT sure
-        temp2 = map(freq_target2, 0, 420, 560, 120);
-      }
+
+
+    //analogWrite(4, volume); // D4 is the dac on the LGT8F
+    // readRangeContinuousMillimeters
+    freq_target2 = sensors[0].readRangeContinuousMillimeters();
+
+    if (freq_target2  < 700 ) {
+      //if (debug) Serial.println(freq_target2);
+
+      if ( ! continuous ) {
+        if (abs(lastPos - freq_target2) > 20) { // NOT sure
+          temp2 = int(map(freq_target2, 0, 700, 28, 0));
+
+        }
+        lastPos = freq_target2;
+      } else {
+        if (abs(lastPos - freq_target2) > 12) { // NOT sure
+          //temp2 = map(freq_target2, 0, 700, 660, 120);
+          temp2 = map(freq_target2, 0, 700, 62, 0);
+        }
         lastPos = freq_target2;
 
-    }
-  }
-
-  switch (bank) {
-    case 0:
-      switch (pb1) {
-        case 0:
-          temp1 = pgm_read_float( &Nahawand[temp2 ]);
-          break;
-        case 1:
-          temp1 = pgm_read_float( &Bayati[temp2 ]);
-          break;
-        case 2:
-          temp1 = pgm_read_float( &NawaAthar[temp2]);
-          break;
-        case 3:
-          temp1 = pgm_read_float( &Farafahza[temp2 ]);
-          break;
-        case 4:
-          temp1 = pgm_read_float( &Nikriz[temp2 ]);
-          break;
-        case 5:
-          temp1 = pgm_read_float( &Bhairav[temp2 ]);
-          break;
       }
-      break;
-    case 1:
-      switch (pb2) {
-        case 0:
-          temp1 = pgm_read_float( &PhrygianFreq[temp2 ]);
-          break;
-        case 1:
-          temp1 = pgm_read_float( &RomanMinor[temp2 ]);
-          break;
-        case 2:
-          temp1 = pgm_read_float( &NeapolitanMinor[temp2 ]);
-          break;
-        case 3:
-          temp1 = pgm_read_float( &MelodicMinor[temp2 ]);
-          break;
-        case 4:
-         temp1 = pgm_read_float( &Spanish[temp2 ]);  
-          break;
-        case 5:
-          temp1 = pgm_read_float( &LydianMinor[temp2 ]); 
-          break;
-      }
-      break;
-    case 2:
-      switch (pb3) {
-        case 0:
-          temp1 = pgm_read_float( &Suznak[temp2 ]);
-          break;
-        case 1:
-          temp1 = pgm_read_float( &Zamzam[temp2 ]);
-          break;
-        case 2:
-          temp1 = pgm_read_float( &KijazKarKurd[temp2 ]); 
-          break;
-        case 3:
-          temp1 = pgm_read_float( &RomanianMinor[temp2 ]);
-          break;
-        case 4:
-          temp1 = pgm_read_float( &Enigmatic[temp2 ]);
-          break;
-        case 5:
-          temp1 = pgm_read_float( Partch1[temp2 ]);
-          break;
-      }
-      break;
-
-  }
-  // here we either glide up or down
-  if ( temp1 < 1600  && temp1 > 30 && continuous == false) {
-    if (freq_init1 > temp1) {
-      cont = GlideFreq(freq_init1, temp1, false);
-
-    } else if (freq_init1 < temp1) {
-      cont = GlideFreq(freq_init1, temp1, true);
-    }
-    freq_init1 = temp1;
-  } else if ( temp2 < 500 && temp2 > 79 && continuous == true ) { //&& abs(freq_init1 - temp2) > 5 ) {
-    //temp2 = pgm_read_float( &ContToFreq[temp2 ] ); //ContToFreq
-    if (freq_init1 > temp2) {
-      cont = GlideContinuous(freq_init1, temp2, false);
-
-    } else if (freq_init1 < temp2) {
-      cont = GlideContinuous(freq_init1, temp2, true);
     }
 
-    freq_init1 = temp2;
-  }
-  while (cont == false) {
-    ; //nop
+    switch (bank) {
+      case 0:
+        switch (pb1) {
+          case 0:
+            temp1 = pgm_read_float( &Nahawand[temp2 ]);
+            break;
+          case 1:
+            temp1 = pgm_read_float( &Bayati[temp2 ]);
+            break;
+          case 2:
+            temp1 = pgm_read_float( &NawaAthar[temp2]);
+            break;
+          case 3:
+            temp1 = pgm_read_float( &Farafahza[temp2 ]);
+            break;
+          case 4:
+            temp1 = pgm_read_float( &Nikriz[temp2 ]);
+            break;
+          case 5:
+            temp1 = pgm_read_float( &Bhairav[temp2 ]);
+            break;
+        }
+        break;
+      case 1:
+        switch (pb2) {
+          case 0:
+            temp1 = pgm_read_float( &PhrygianFreq[temp2 ]);
+            break;
+          case 1:
+            temp1 = pgm_read_float( &RomanMinor[temp2 ]);
+            break;
+          case 2:
+            temp1 = pgm_read_float( &NeapolitanMinor[temp2 ]);
+            break;
+          case 3:
+            temp1 = pgm_read_float( &MelodicMinor[temp2 ]);
+            break;
+          case 4:
+            temp1 = pgm_read_float( &Spanish[temp2 ]);
+            break;
+          case 5:
+            temp1 = pgm_read_float( &LydianMinor[temp2 ]);
+            break;
+        }
+        break;
+      case 2:
+        switch (pb3) {
+          case 0:
+            temp1 = pgm_read_float( &Suznak[temp2 ]);
+            break;
+          case 1:
+            temp1 = pgm_read_float( &Zamzam[temp2 ]);
+            break;
+          case 2:
+            temp1 = pgm_read_float( &KijazKarKurd[temp2 ]);
+            break;
+          case 3:
+            temp1 = pgm_read_float( &RomanianMinor[temp2 ]);
+            break;
+          case 4:
+            temp1 = pgm_read_float( &Enigmatic[temp2 ]);
+            break;
+          case 5:
+            temp1 = pgm_read_float( Partch1[temp2 ]);
+            break;
+        }
+        break;
+
+    }
+    // here we either glide up or down
+    if ( temp1 < 800  && temp1 > 30 && continuous == false) {
+      if (freq_init1 > temp1) {
+        cont = GlideFreq(freq_init1, temp1, false);
+
+      } else if (freq_init1 < temp1) {
+        cont = GlideFreq(freq_init1, temp1, true);
+      }
+      freq_init1 = temp1;
+    } else if ( continuous == true ) { //&& abs(freq_init1 - temp2) > 5 ) {
+      temp2 = pgm_read_float( &ContToFreq[temp2 ] ); //ContToFreq
+      if (freq_init1 > temp2) {
+        cont = GlideContinuous(freq_init1, temp2, false);
+
+      } else if (freq_init1 < temp2) {
+        cont = GlideContinuous(freq_init1, temp2, true);
+      }
+
+      freq_init1 = temp2;
+    }
+    while (cont == false) {
+      ; //nop
+    }
+    startMillis = currentMillis;  //IMPORTANT to save the start time of the current LED state.
   }
 
   eb1.update(); // respond to encoder/button
-  //delay(10);
+
 }
 // END LOOP
 
@@ -359,11 +378,15 @@ void loop()
 bool GlideFreq(float from, float too, bool up) {
   //make sure we complete the glides before the loop proceeds
   cont = false;
+  
+  //first send note on
+  //MIDI.sendNoteOn(frequency_to_midi_note(too), 127, midiChannel);
+  if (debug) Serial.println( frequency_to_midi_note(too));      
   if (up) {
     while (from < too) {
       AD[0].setFrequency(from);
       //AD[1].setFrequency(from * freq_offset);
-      from = from + 0.9;
+      from = from + 1;
 
     }
     // complete since while may exit early
@@ -374,13 +397,15 @@ bool GlideFreq(float from, float too, bool up) {
     while (from > too) {
       AD[0].setFrequency(from);
       //AD[1].setFrequency(from * freq_offset);
-      from = from - 0.9;
+      from = from - 1;
 
     }
     // complete since while may exit early
     AD[0].setFrequency(too);
     //AD[1].setFrequency(too * freq_offset);
   }
+  // now send noteoff
+  //MIDI.sendNoteOff(frequency_to_midi_note(too), 0, midiChannel);
   return true;
 }
 // Function to glide notes up/down
@@ -391,7 +416,7 @@ bool GlideContinuous(float from, float too, bool up) {
     while (from < too) {
       AD[0].setFrequency(from);
       //AD[1].setFrequency(from * freq_offset);
-      from = from + 0.06;
+      from = from + 1;//0.06;
 
     }
     // complete since while may exit early
@@ -402,7 +427,7 @@ bool GlideContinuous(float from, float too, bool up) {
     while (from > too) {
       AD[0].setFrequency(from);
       //AD[1].setFrequency(from * freq_offset);
-      from = from - 0.06;
+      from = from - 1;//0.06;
 
     }
     // complete since while may exit early
@@ -432,4 +457,20 @@ bool GlideVolume(float from, float too, bool up) {
   }
   lastvol = too;
   return true;
+}
+/*
+  Converts a note frequency to the closest corresponding MIDI
+  note number.
+  Adapted from https://gist.github.com/francoisgeorgy/d155f4aa5e8bd767504c2b43e1ba2902
+  
+  This is the inverse of the previous function- keep in mind
+  that if the frequency falls inbetween two MIDI notes this
+  will discard the "remainder". This method could be extended
+  to return the remainder as the number of cents above or below
+  the MIDI note.
+  
+*/
+uint32_t frequency_to_midi_note(float frequency) {
+  float note = 69.0f + logf(frequency / a4_frequency) / logf(2.0f) * semitones_per_octave;
+  return ceil(note);
 }
