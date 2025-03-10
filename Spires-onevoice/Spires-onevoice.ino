@@ -9,7 +9,7 @@
 #include <Wire.h>
 #include <VL53L0X.h>
 #include <MIDI.h>
-
+#include <Midier.h>
 #include <math.h>
 #include <util/crc16.h>
 #include "AD9833.h"
@@ -17,7 +17,32 @@
 // # define ENCODER_DO_NOT_USE_INTERRUPTS
 #include <EncoderButton.h>
 
-bool debug = true;
+// some midier setup
+
+const midier::Degree scaleDegrees[] = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21 };
+const midier::Note roots[] = {
+    midier::Note::C,
+    midier::Note::D,
+    midier::Note::E,
+    midier::Note::F,
+    midier::Note::G,
+    midier::Note::A,
+    midier::Note::B,
+  };
+  
+ /* modes
+    Ionian,
+    Dorian,
+    Phrygian,
+    Lydian,
+    Mixolydian,
+    Aeolian,
+    Locrian,
+    const midier::Mode mode = midier::Mode::Ionian;
+*/
+
+
+bool debug = false;
 // variables for runtime control
 bool up;
 bool cont = true;
@@ -26,12 +51,42 @@ unsigned int lastPos;
 bool continuous = false;
 bool sine = true;
 
-int led = 2; // for display led
+// freq to midi
+static const uint32_t midi_note_at_zero_volts = 12;
+static const float semitones_per_octave = 12.0f;
+static const float volts_per_semitone = 1.0f / semitones_per_octave;
+static const float a4_frequency = 440.0f;
+static const uint32_t a4_midi_note = 69;
 
-//MIDI_CREATE_DEFAULT_INSTANCE();
+int led = 2; // for display led
+// default works fine
+MIDI_CREATE_INSTANCE(HardwareSerial, Serial, MIDI);
+
+/*
+  Converts a note frequency to the closest corresponding MIDI
+  note number.
+  Adapted from https://gist.github.com/francoisgeorgy/d155f4aa5e8bd767504c2b43e1ba2902
+*/
+uint32_t frequency_to_midi_note(float frequency) {
+  float note = 69.0f + logf(frequency / a4_frequency) / logf(2.0f) * semitones_per_octave;
+  return ceil(note);
+}
+
+float midi_note_to_frequency(uint32_t midi_note) {
+  float semitones_away_from_a4 = (float)(midi_note) - (float)(a4_midi_note);
+  return powf(2.0f, semitones_away_from_a4 / semitones_per_octave) * a4_frequency;
+}
+
+// need to send note offs :)
+void allOff() {
+  for (int i=28; i < 90; i++) {
+    MIDI.sendNoteOff(i, 0, 1);
+  }
+}
+
 int midiChannel = 1;  // Define which MIDI channel to transmit on (1 to 16).
 
-unsigned int cSpeed = 100000;
+unsigned int cSpeed = 200000;
 //  each device needs its own select pin.
 AD9833 AD[1] =
 {
@@ -66,9 +121,20 @@ int pb2 = 0;
 int pb2total = 6;
 int pb3 = 0;
 int pb3total = 6;
+int pb4 = 0;
+int pb4total = 7;
+int pb5 = 0;
+int pb5total = 6;
 
-int numProg = 18;
-int numBank = 3;
+int numProg = 24;
+int numBank = 5;
+
+// we have to slow it down :)
+unsigned long startMillis;
+unsigned long currentMillis;
+const unsigned long period = 95;
+
+int lastNote;
 
 #include "encoder.h"
 
@@ -82,12 +148,7 @@ const float ContToFreq[63] PROGMEM = {29.14, 30.87, 32.70, 34.65, 36.71, 38.89, 
                                       932.33, 987.77, 1046.50
                                      };
 
-static const uint32_t midi_note_at_zero_volts = 12;
 
-static const float semitones_per_octave = 12.0f;
-static const float volts_per_semitone = 1.0f / semitones_per_octave;
-static const float a4_frequency = 440.0f;
-static const uint32_t a4_midi_note = 69;
 
 #define GEN_DATA    11
 // AD9833 Waveform Module
@@ -128,12 +189,6 @@ float noteIndex;
 
 
 
-//  analogReference(DEFAULT);  // 5v
-
-// we have to slow it down :)
-unsigned long startMillis;
-unsigned long currentMillis;
-const unsigned long period = 100;
 void setup()
 {
 
@@ -152,7 +207,9 @@ void setup()
 
   //while (!Serial) {}
   
-  //MIDI.begin(1);
+  MIDI.begin(MIDI_CHANNEL_OMNI);// MIDI_CHANNEL_OFF);
+
+  
   if (debug) Serial.begin(115200);
   
   Wire.begin();
@@ -165,7 +222,7 @@ void setup()
   AD[0].begin();
   //AD[1].begin();
   //  A major chord
-  AD[0].setWave(AD9833_TRIANGLE);
+  AD[0].setWave(AD9833_SINE);
   //AD[1].setWave(AD9833_SINE);
   AD[0].setFrequency(240.00, 0);     //  A
   //AD[1].setFrequency(242.00, 0);     //  C#
@@ -239,18 +296,17 @@ void loop()
   float temp1;
   int temp2;
   currentMillis = millis();
-
+  
+  eb1.update(); // respond to encoder/button
+  
   //freq_target1 = sensors[0].readRangeContinuousMillimeters(); //freq_init1;
   if (sensors[0].timeoutOccurred()) {
     if (debug) Serial.print(" TIMEOUT");
   }
   currentMillis = millis();  //get the current "time" (actually the number of milliseconds since the program started)
-
+  // slow everything down a bit :)
   if (currentMillis - startMillis >= period)  //test whether the period has elapsed
   {
-
-
-
     //analogWrite(4, volume); // D4 is the dac on the LGT8F
     // readRangeContinuousMillimeters
     freq_target2 = sensors[0].readRangeContinuousMillimeters();
@@ -259,21 +315,32 @@ void loop()
       //if (debug) Serial.println(freq_target2);
 
       if ( ! continuous ) {
-        if (abs(lastPos - freq_target2) > 20) { // NOT sure
-          temp2 = int(map(freq_target2, 0, 700, 28, 0));
+        if (abs(lastPos - freq_target2) > 5) { // NOT sure
+          
+          // we have some pentatanic scales :*)
+          if (bank == 3) {
+          temp2 = int(map(freq_target2, 0, 700, 17, 0));
+          // and some hexas
+          } else if (bank == 4) {
+            temp2 = int(map(freq_target2, 0, 700, 24, 0)); 
+          }
+          else {
+           temp2 = int(map(freq_target2, 0, 700, 28, 0));
+          }
+          
 
         }
         lastPos = freq_target2;
       } else {
-        if (abs(lastPos - freq_target2) > 12) { // NOT sure
+        if (abs(lastPos - freq_target2) > 5) { // NOT sure
           //temp2 = map(freq_target2, 0, 700, 660, 120);
-          temp2 = map(freq_target2, 0, 700, 62, 0);
+          temp2 = map(freq_target2, 0, 700, 54, 7);
         }
         lastPos = freq_target2;
 
       }
     }
-
+// this is clumsy. it does have the nice advantage of a short view of the scales
     switch (bank) {
       case 0:
         switch (pb1) {
@@ -300,7 +367,7 @@ void loop()
       case 1:
         switch (pb2) {
           case 0:
-            temp1 = pgm_read_float( &PhrygianFreq[temp2 ]);
+            temp1 = pgm_read_float( &MajorPentatonic[temp2 ]);
             break;
           case 1:
             temp1 = pgm_read_float( &RomanMinor[temp2 ]);
@@ -337,7 +404,57 @@ void loop()
             temp1 = pgm_read_float( &Enigmatic[temp2 ]);
             break;
           case 5:
-            temp1 = pgm_read_float( Partch1[temp2 ]);
+            temp1 = pgm_read_float( &Partch1[temp2 ]);
+            break;
+        }
+        break;
+      case 3:
+        switch (pb4) {
+          case 0:
+            temp1 = pgm_read_float( &Pelog[temp2 ]);
+            break;
+          case 1:
+            temp1 = pgm_read_float( &Zhi[temp2 ]);
+            break;
+          case 2:
+            temp1 = pgm_read_float( &Yu[temp2 ]);
+            break;
+          case 3:
+            temp1 = pgm_read_float( &MajPent[temp2 ]);
+            break;
+          case 4:
+            temp1 = pgm_read_float( &Kumoi[temp2 ]);
+            break;
+          case 5:
+            temp1 = pgm_read_float( &Jiao[temp2 ]);
+            break;
+          case 6:
+            temp1 = pgm_read_float( &Prometheus[temp2 ]);
+            break;
+        }
+        break;
+       case 4:
+        switch (pb5) {
+          case 0:
+            temp1 = pgm_read_float( &HexDorian[temp2 ]);
+            break;
+          case 1:
+            temp1 = pgm_read_float( &HexAeolian[temp2 ]);
+            break;
+          case 2:
+            temp1 = pgm_read_float( &HexSus[temp2 ]);
+            break;
+          case 3:
+            temp1 = pgm_read_float( &HexPhrygian[temp2 ]);
+            break;
+          case 4:
+            temp1 = pgm_read_float( &HexMaj6[temp2 ]);
+            break;
+          case 5:
+            temp1 = pgm_read_float( &HexMaj7[temp2 ]);
+            break;
+          case 6:
+            temp1 = pgm_read_float( &PhrygianFreq[temp2 ]);
             break;
         }
         break;
@@ -369,7 +486,7 @@ void loop()
     startMillis = currentMillis;  //IMPORTANT to save the start time of the current LED state.
   }
 
-  eb1.update(); // respond to encoder/button
+  
 
 }
 // END LOOP
@@ -379,9 +496,13 @@ bool GlideFreq(float from, float too, bool up) {
   //make sure we complete the glides before the loop proceeds
   cont = false;
   
-  //first send note on
-  //MIDI.sendNoteOn(frequency_to_midi_note(too), 127, midiChannel);
-  if (debug) Serial.println( frequency_to_midi_note(too));      
+  // send noteoff on new note
+  MIDI.sendNoteOff(frequency_to_midi_note(lastNote), 0, midiChannel);
+  //now send note on
+  MIDI.sendNoteOn(frequency_to_midi_note(too), 127, midiChannel);
+  lastNote = too;
+  
+   //if (debug) Serial.println( frequency_to_midi_note(too));      
   if (up) {
     while (from < too) {
       AD[0].setFrequency(from);
@@ -404,8 +525,7 @@ bool GlideFreq(float from, float too, bool up) {
     AD[0].setFrequency(too);
     //AD[1].setFrequency(too * freq_offset);
   }
-  // now send noteoff
-  //MIDI.sendNoteOff(frequency_to_midi_note(too), 0, midiChannel);
+
   return true;
 }
 // Function to glide notes up/down
@@ -457,20 +577,4 @@ bool GlideVolume(float from, float too, bool up) {
   }
   lastvol = too;
   return true;
-}
-/*
-  Converts a note frequency to the closest corresponding MIDI
-  note number.
-  Adapted from https://gist.github.com/francoisgeorgy/d155f4aa5e8bd767504c2b43e1ba2902
-  
-  This is the inverse of the previous function- keep in mind
-  that if the frequency falls inbetween two MIDI notes this
-  will discard the "remainder". This method could be extended
-  to return the remainder as the number of cents above or below
-  the MIDI note.
-  
-*/
-uint32_t frequency_to_midi_note(float frequency) {
-  float note = 69.0f + logf(frequency / a4_frequency) / logf(2.0f) * semitones_per_octave;
-  return ceil(note);
 }

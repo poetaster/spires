@@ -2,26 +2,27 @@
    handle encoder button long press event
 */
 void onEb1LongPress(EncoderButton& eb) {
+  allOff();
   if (sine == true) {
-      AD[0].setWave(AD9833_TRIANGLE);
-      sine = false;
-      analogWrite(led, 255);
-      delay(250);
-      analogWrite(led, 0);
-      delay(250);
+    AD[0].setWave(AD9833_TRIANGLE);
+    sine = false;
+    analogWrite(led, 255);
+    delay(250);
+    analogWrite(led, 0);
+    delay(250);
   } else {
-      AD[0].setWave(AD9833_SINE);
-      sine = true;
-      analogWrite(led, 255);
-      delay(300);
-      analogWrite(led, 0);
-      delay(300);
+    AD[0].setWave(AD9833_SINE);
+    sine = true;
+    analogWrite(led, 255);
+    delay(300);
+    analogWrite(led, 0);
+    delay(300);
   }
 
-  
+
   if (debug) {
     Serial.print("button1 longPressCount: ");
-    Serial.println(eb.longPressCount());
+    Serial.println(sine);
   }
 }
 /**
@@ -29,22 +30,23 @@ void onEb1LongPress(EncoderButton& eb) {
    offsets OCR2A
 */
 void onEb1PressTurn(EncoderButton& eb) {
+  allOff();
   enc_delta = eb.increment();
-  
-  bank = bank + enc_delta; // freom main class total 
-  if ( bank > numBank -1 ) {
+
+  bank = bank + enc_delta; // freom main class total
+  if ( bank > numBank - 1 ) {
     bank = 0;
   } else if ( bank < 0 ) {
-    bank = numBank-1;
+    bank = numBank - 1;
   }
   Serial.print("bank: ");
   Serial.println(bank);
-    
+
   for (uint8_t i = 0; i <= bank; i++) {
-     analogWrite(led, 255);
-     delay(250);
-     analogWrite(led, 0);
-     delay(230);
+    analogWrite(led, 255);
+    delay(250);
+    analogWrite(led, 0);
+    delay(230);
   }
 
   if (debug) {
@@ -59,23 +61,24 @@ void onEb1PressTurn(EncoderButton& eb) {
    handle encoder turn with  button pressed
 */
 void onEb1Clicked(EncoderButton& eb) {
+  allOff();
 
   // set which bank to select formulas from
   int type = eb.clickCount();
 
   if (type == 1 ) {
     continuous = true;
-        cSpeed = 50000;
+    cSpeed = 50000;
   }
   if (type == 2) {
     continuous = false;
     cSpeed = 200000;
   }
   for (uint8_t i = 0; i < type; i++) {
-     analogWrite(led, 255);
-     delay(75);
-     analogWrite(led, 0);
-     delay(100);
+    analogWrite(led, 255);
+    delay(75);
+    analogWrite(led, 0);
+    delay(100);
   }
   if (debug) {
     Serial.print("bank: ");
@@ -90,22 +93,24 @@ void onEb1Clicked(EncoderButton& eb) {
    A function to handle the 'encoder' event without button
 */
 void onEb1Encoder(EncoderButton& eb) {
+  // turn off midi notes
+  allOff();
 
   //displayUpdate();
   enc_delta = eb.increment();
-  
-  //prog = prog + enc_delta; // freom main class total 
-  
+
+  //prog = prog + enc_delta; // freom main class total
+
   if (bank == 0)
   {
     pb1 = pb1 + enc_delta;
-    if (pb1 > pb1total-1) {
+    if (pb1 > pb1total - 1) {
       pb1 = 0;
     } else if (pb1 < 0) {
-      pb1 = pb1total-1;
+      pb1 = pb1total - 1;
     }
     prog = pb1;
-  } 
+  }
   else if (bank == 1) {
     pb2 = pb2 + enc_delta;
     if (pb2 > pb2total - 1) {
@@ -114,24 +119,40 @@ void onEb1Encoder(EncoderButton& eb) {
       pb2 = pb2total - 1;
     }
     prog = pb2;
-  } 
+  }
   else if (bank == 2) {
-     pb3 = pb3 + enc_delta;
-    if (pb3 > pb3total-1) {
+    pb3 = pb3 + enc_delta;
+    if (pb3 > pb3total - 1) {
       pb3 = 0;
     } else if (pb3 < 0) {
-      pb3 = pb2total -1;
+      pb3 = pb3total - 1;
     }
     prog = pb3;
   }
-  Serial.print("prog: ");
-  Serial.println(prog);
-    
+  else if (bank == 3) {
+    pb4 = pb4 + enc_delta;
+    if (pb4 > pb4total - 1) {
+      pb4 = 0;
+    } else if (pb4 < 0) {
+      pb4 = pb4total - 1;
+    }
+    prog = pb4;
+  }
+  else if (bank == 4) {
+    pb5 = pb5 + enc_delta;
+    if (pb5 > pb5total - 1) {
+      pb5 = 0;
+    } else if (pb5 < 0) {
+      pb5 = pb5total - 1;
+    }
+    prog = pb5;
+  }
+
   for (uint8_t i = 0; i <= prog; i++) {
-     analogWrite(led, 255);
-     delay(80);
-     analogWrite(led, 0);
-     delay(100);
+    analogWrite(led, 255);
+    delay(250);
+    analogWrite(led, 0);
+    delay(230);
   }
 
   if (debug) {
