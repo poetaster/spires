@@ -33,7 +33,7 @@ void onEb1LongPress(EncoderButton& eb) {
 */
 void onEb1PressTurn(EncoderButton& eb) {
 
-  if (debug == false ) MIDI.sendNoteOff(frequency_to_midi_note(lastNote), 0, midiChannel);//allOff();
+  if (debug == false ) allOff();
 
   enc_delta = eb.increment();
 
