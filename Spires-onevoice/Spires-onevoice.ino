@@ -19,27 +19,51 @@
 
 // some midier setup
 
+MIDI_CREATE_INSTANCE(HardwareSerial, Serial, MIDI);
+
+
 const midier::Degree scaleDegrees[] = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21 };
 const midier::Note roots[] = {
-    midier::Note::C,
-    midier::Note::D,
-    midier::Note::E,
-    midier::Note::F,
-    midier::Note::G,
-    midier::Note::A,
-    midier::Note::B,
-  };
+  midier::Note::C, midier::Note::D,  midier::Note::E, midier::Note::F, midier::Note::G, midier::Note::A, midier::Note::B
+};
+
+midier::Mode mode;
+int scaleRoot = 0; // start at c, yawn.
+
+int currentMode[21];
+
+void initScales() {
+  // iterate over all root notes
+  const midier::Mode mode = midier::Mode::Ionian;
+  for (auto note : roots)
+  {
+    // play the major chord
+    makeScale(note, mode);
+  }
+}
+void makeScale(midier::Note root, midier::Mode mode) {
+
+  // the root note of the scale
+  const midier::Note scaleRoot = root;
+
+  // we are playing ionian mode which is the major scale
+  // if you are not familiar with modes, just know that "ionian" is the major scale and "aeolian" is the minor scale
+  //const midier::Mode mode = midier::Mode::Ionian;
+
   
- /* modes
-    Ionian,
-    Dorian,
-    Phrygian,
-    Lydian,
-    Mixolydian,
-    Aeolian,
-    Locrian,
-    const midier::Mode mode = midier::Mode::Ionian;
-*/
+  for (midier::Degree scaleDegree : scaleDegrees)
+  {
+    // find out the interval to be added to the root note for this chord degree and chord quality
+    const midier::Interval interval = midier::scale::interval(mode, scaleDegree);
+
+    // calculate the note of this chord degree
+    const midier::Note note = scaleRoot + interval;
+    currentMode[ scaleDegree - 1 ] = midier::midi::number(note, 2);
+
+
+  }
+  //Serial.println();
+}
 
 
 bool debug = false;
@@ -60,7 +84,7 @@ static const uint32_t a4_midi_note = 69;
 
 int led = 2; // for display led
 // default works fine
-MIDI_CREATE_INSTANCE(HardwareSerial, Serial, MIDI);
+
 
 /*
   Converts a note frequency to the closest corresponding MIDI
@@ -79,12 +103,15 @@ float midi_note_to_frequency(uint32_t midi_note) {
 
 // need to send note offs :)
 void allOff() {
-  for (int i=28; i < 90; i++) {
+  for (int i = 28; i < 90; i++) {
     MIDI.sendNoteOff(i, 0, 1);
   }
 }
 
 int midiChannel = 1;  // Define which MIDI channel to transmit on (1 to 16).
+
+
+/* signal generator setup */
 
 unsigned int cSpeed = 200000;
 //  each device needs its own select pin.
@@ -94,6 +121,8 @@ AD9833 AD[1] =
   //AD9833(9)
 };  //  4 devices.
 
+/* TOF sensor setup */
+
 // The number of sensors in your system.
 const uint8_t sensorCount = 1; // original used two. switched to ldr for volume
 // The Arduino pin connected to the XSHUT pin of each sensor.
@@ -102,7 +131,7 @@ const uint8_t xshutPins[sensorCount] = {7};
 VL53L0X sensors[sensorCount];
 
 
-// encoder
+// encoder setup
 // the a and b + the button pin large encoders are 6,5,4
 EncoderButton eb1(3, 6, 4);
 
@@ -112,9 +141,10 @@ int encoder_pos_last = 0;
 long encoder_delta = 0;
 int enc_offset = 1; // changes direction
 int enc_delta; // which direction
-//for program switching
+
+// program switching ugh, todo
 int prog = 0;
-int bank = 0;
+int bank = 5;
 int pb1 = 0;
 int pb1total = 6;
 int pb2 = 0;
@@ -125,9 +155,11 @@ int pb4 = 0;
 int pb4total = 7;
 int pb5 = 0;
 int pb5total = 6;
+int pb6 = 0;
+int pb6total = 7;
 
-int numProg = 24;
-int numBank = 5;
+int numProg = 25;
+int numBank = 6;
 
 // we have to slow it down :)
 unsigned long startMillis;
@@ -164,6 +196,7 @@ float freq_offset = 1; //4 / 3;
 
 float volume = 255;  // volume for our machine
 
+// These are for reference from synther jack
 // Table with note symbols, used for display
 const char *IndexToNote[] = {"C-", "C#", "D-", "D#", "E-", "F-", "F#", "G-", "G#", "A-", "A#", "B-"};
 
@@ -192,50 +225,31 @@ float noteIndex;
 void setup()
 {
 
-
-  // setup led for audio volume
-  //analogReference(DEFAULT);  // 5v
   pinMode(led, OUTPUT);
-  // DAC stuff, not used
-  //analogReference(DEFAULT);
-  //analogReference(INTERNAL2V56);
-  //pinMode(4, ANALOG);
-  // from audio
-
   SPI.begin();
   delay(50);
-
   //while (!Serial) {}
-  
-  MIDI.begin(MIDI_CHANNEL_OMNI);// MIDI_CHANNEL_OFF);
 
-  
+  if (debug == false) {
+    MIDI.begin(MIDI_CHANNEL_OMNI);// MIDI_CHANNEL_OFF);
+  }
   if (debug) Serial.begin(115200);
-  
+
   Wire.begin();
   Wire.setClock(400000); // use 400 kHz I2C
 
-  // start amp first
+  // start amp first not using this
   //AMP.begin(10, 14);
-  //Serial.println(AMP.getVolume(2));
-
+  // start the signal generator
   AD[0].begin();
-  //AD[1].begin();
-  //  A major chord
   AD[0].setWave(AD9833_SINE);
-  //AD[1].setWave(AD9833_SINE);
   AD[0].setFrequency(240.00, 0);     //  A
-  //AD[1].setFrequency(242.00, 0);     //  C#
 
   //can be also read from eeprom
   freq_target1 = freq_init1;
   freq_target2 = freq_init2;
 
-  //noteIndex = FreqToNote(freq_target1);
-
-  // END from audio
-
-
+  // start the TOF sensor
 
   // Disable/reset all sensors by driving their XSHUT pins low.
   for (uint8_t i = 0; i < sensorCount; i++)
@@ -284,7 +298,7 @@ void setup()
 
   lastPos = sensors[0].readRangeContinuousMillimeters();
   if (debug) Serial.println(lastPos);
-  //analogWrite(4, 255);
+  // we start in scale mode
   continuous = false;
   startMillis = millis();
 }
@@ -296,38 +310,41 @@ void loop()
   float temp1;
   int temp2;
   currentMillis = millis();
-  
+
   eb1.update(); // respond to encoder/button
-  
+
   //freq_target1 = sensors[0].readRangeContinuousMillimeters(); //freq_init1;
   if (sensors[0].timeoutOccurred()) {
     if (debug) Serial.print(" TIMEOUT");
   }
-  currentMillis = millis();  //get the current "time" (actually the number of milliseconds since the program started)
+  
+  currentMillis = millis();  
   // slow everything down a bit :)
   if (currentMillis - startMillis >= period)  //test whether the period has elapsed
   {
-    //analogWrite(4, volume); // D4 is the dac on the LGT8F
+    
     // readRangeContinuousMillimeters
     freq_target2 = sensors[0].readRangeContinuousMillimeters();
 
     if (freq_target2  < 700 ) {
-      //if (debug) Serial.println(freq_target2);
-
       if ( ! continuous ) {
         if (abs(lastPos - freq_target2) > 5) { // NOT sure
-          
-          // we have some pentatanic scales :*)
           if (bank == 3) {
-          temp2 = int(map(freq_target2, 0, 700, 17, 0));
-          // and some hexas
+            // we have some pentatanic scales :*)
+            temp2 = int(map(freq_target2, 0, 700, 17, 0));
+          
           } else if (bank == 4) {
-            temp2 = int(map(freq_target2, 0, 700, 24, 0)); 
+            // and some hexatonics
+            temp2 = int(map(freq_target2, 0, 700, 24, 0));
+          }
+          else if (bank == 5) {
+            // and we keep range smaller for trad modes.
+            temp2 = int(map(freq_target2, 0, 700, 20, 0));
           }
           else {
-           temp2 = int(map(freq_target2, 0, 700, 28, 0));
+            temp2 = int(map(freq_target2, 0, 700, 28, 0));
           }
-          
+
 
         }
         lastPos = freq_target2;
@@ -340,7 +357,7 @@ void loop()
 
       }
     }
-// this is clumsy. it does have the nice advantage of a short view of the scales
+    // this is clumsy. it does have the nice advantage of a short view of the scales
     switch (bank) {
       case 0:
         switch (pb1) {
@@ -433,7 +450,7 @@ void loop()
             break;
         }
         break;
-       case 4:
+      case 4:
         switch (pb5) {
           case 0:
             temp1 = pgm_read_float( &HexDorian[temp2 ]);
@@ -458,9 +475,45 @@ void loop()
             break;
         }
         break;
+      case 5:
+        switch (pb6) {
+          case 0:
+            mode = midier::Mode::Ionian;
+            break;
+          case 1:
+            mode = midier::Mode::Dorian;
+            break;
+          case 2:
+            mode = midier::Mode::Phrygian;
+            break;
+          case 3:
+            mode = midier::Mode::Lydian;
+            break;
+          case 4:
+            mode = midier::Mode::Mixolydian;
+            break;
+          case 5:
+            mode = midier::Mode::Aeolian;
+            break;
+          case 6:
+            mode = midier::Mode::Locrian;
+            break;
+        }
+        makeScale( roots[scaleRoot], mode);
+        temp1 = midi_note_to_frequency(currentMode[temp2]);
+        
+        if (debug) {
+          Serial.print("scaleRoot & degree ");
+          Serial.print((char)roots[scaleRoot]);
+          Serial.print(" " );
+          Serial.println(currentMode[temp2]);
+        }
+        break;
 
     }
-    // here we either glide up or down
+
+    // the frequency is used now to glide up or down
+
     if ( temp1 < 800  && temp1 > 30 && continuous == false) {
       if (freq_init1 > temp1) {
         cont = GlideFreq(freq_init1, temp1, false);
@@ -483,10 +536,10 @@ void loop()
     while (cont == false) {
       ; //nop
     }
-    startMillis = currentMillis;  //IMPORTANT to save the start time of the current LED state.
+    startMillis = currentMillis;  //IMPORTANT to save the start time .
   }
 
-  
+
 
 }
 // END LOOP
@@ -495,14 +548,16 @@ void loop()
 bool GlideFreq(float from, float too, bool up) {
   //make sure we complete the glides before the loop proceeds
   cont = false;
-  
+
   // send noteoff on new note
-  MIDI.sendNoteOff(frequency_to_midi_note(lastNote), 0, midiChannel);
-  //now send note on
-  MIDI.sendNoteOn(frequency_to_midi_note(too), 127, midiChannel);
+  if ( ! debug ) {
+    MIDI.sendNoteOff(frequency_to_midi_note(lastNote), 0, midiChannel);
+    //now send note on
+    MIDI.sendNoteOn(frequency_to_midi_note(too), 127, midiChannel);
+  }
   lastNote = too;
-  
-   //if (debug) Serial.println( frequency_to_midi_note(too));      
+
+  //if (debug) Serial.println( frequency_to_midi_note(too));
   if (up) {
     while (from < too) {
       AD[0].setFrequency(from);

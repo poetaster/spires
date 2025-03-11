@@ -2,7 +2,9 @@
    handle encoder button long press event
 */
 void onEb1LongPress(EncoderButton& eb) {
-  allOff();
+
+  if ( debug == false) allOff();
+
   if (sine == true) {
     AD[0].setWave(AD9833_TRIANGLE);
     sine = false;
@@ -30,7 +32,9 @@ void onEb1LongPress(EncoderButton& eb) {
    offsets OCR2A
 */
 void onEb1PressTurn(EncoderButton& eb) {
-  allOff();
+
+  if (debug == false ) allOff();
+
   enc_delta = eb.increment();
 
   bank = bank + enc_delta; // freom main class total
@@ -61,19 +65,28 @@ void onEb1PressTurn(EncoderButton& eb) {
    handle encoder turn with  button pressed
 */
 void onEb1Clicked(EncoderButton& eb) {
-  allOff();
+
+  //if ( debug == false )  allOff();
 
   // set which bank to select formulas from
   int type = eb.clickCount();
 
-  if (type == 1 ) {
-    continuous = true;
-    cSpeed = 50000;
+  if (bank = 5 ) {
+    
+    scaleRoot += 1;
+    if (scaleRoot > 6) scaleRoot = 0;
+    
+  } else {
+    if (type == 1 ) {
+      continuous = true;
+      cSpeed = 50000;
+    }
+    if (type == 2) {
+      continuous = false;
+      cSpeed = 200000;
+    }
   }
-  if (type == 2) {
-    continuous = false;
-    cSpeed = 200000;
-  }
+
   for (uint8_t i = 0; i < type; i++) {
     analogWrite(led, 255);
     delay(75);
@@ -93,8 +106,9 @@ void onEb1Clicked(EncoderButton& eb) {
    A function to handle the 'encoder' event without button
 */
 void onEb1Encoder(EncoderButton& eb) {
+
   // turn off midi notes
-  allOff();
+  //if (debug == false) allOff();
 
   //displayUpdate();
   enc_delta = eb.increment();
@@ -146,6 +160,15 @@ void onEb1Encoder(EncoderButton& eb) {
       pb5 = pb5total - 1;
     }
     prog = pb5;
+  }
+  else if (bank == 5) {
+    pb6 = pb6 + enc_delta;
+    if (pb6 > pb6total - 1) {
+      pb6 = 0;
+    } else if (pb6 < 0) {
+      pb6 = pb6total - 1;
+    }
+    prog = pb6;
   }
 
   for (uint8_t i = 0; i <= prog; i++) {
