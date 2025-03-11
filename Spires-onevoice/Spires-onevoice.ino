@@ -50,7 +50,7 @@ void makeScale(midier::Note root, midier::Mode mode) {
   // if you are not familiar with modes, just know that "ionian" is the major scale and "aeolian" is the minor scale
   //const midier::Mode mode = midier::Mode::Ionian;
 
-  
+
   for (midier::Degree scaleDegree : scaleDegrees)
   {
     // find out the interval to be added to the root note for this chord degree and chord quality
@@ -144,21 +144,21 @@ int enc_delta; // which direction
 
 // program switching ugh, todo
 int prog = 0;
-int bank = 5;
+int bank = 0;
 int pb1 = 0;
-int pb1total = 6;
+int pb1total = 7;
 int pb2 = 0;
 int pb2total = 6;
 int pb3 = 0;
 int pb3total = 6;
 int pb4 = 0;
-int pb4total = 7;
+int pb4total = 10;
 int pb5 = 0;
 int pb5total = 6;
 int pb6 = 0;
 int pb6total = 7;
 
-int numProg = 25;
+int numProg = 41;
 int numBank = 6;
 
 // we have to slow it down :)
@@ -194,9 +194,6 @@ float freq_target1 = 440.0;                 // Target frequency for Generator 1
 float freq_target2 = 442.0;                 // Target frequency for Generator 2
 float freq_offset = 1; //4 / 3;
 
-float volume = 255;  // volume for our machine
-
-// These are for reference from synther jack
 // Table with note symbols, used for display
 const char *IndexToNote[] = {"C-", "C#", "D-", "D#", "E-", "F-", "F#", "G-", "G#", "A-", "A#", "B-"};
 
@@ -231,7 +228,7 @@ void setup()
   //while (!Serial) {}
 
   if (debug == false) {
-    MIDI.begin(MIDI_CHANNEL_OMNI);// MIDI_CHANNEL_OFF);
+    MIDI.begin(MIDI_CHANNEL_OFF);//MIDI_CHANNEL_OMNI);
   }
   if (debug) Serial.begin(115200);
 
@@ -301,6 +298,8 @@ void setup()
   // we start in scale mode
   continuous = false;
   startMillis = millis();
+  //midi note offs
+  //allOff();
 }
 
 
@@ -317,27 +316,27 @@ void loop()
   if (sensors[0].timeoutOccurred()) {
     if (debug) Serial.print(" TIMEOUT");
   }
-  
-  currentMillis = millis();  
+
+  currentMillis = millis();
   // slow everything down a bit :)
   if (currentMillis - startMillis >= period)  //test whether the period has elapsed
   {
-    
+
     // readRangeContinuousMillimeters
     freq_target2 = sensors[0].readRangeContinuousMillimeters();
 
     if (freq_target2  < 700 ) {
       if ( ! continuous ) {
-        if (abs(lastPos - freq_target2) > 5) { // NOT sure
+        if (abs(lastPos - freq_target2) > 3) { // NOT sure
           if (bank == 3) {
             // we have some pentatanic scales :*)
             temp2 = int(map(freq_target2, 0, 700, 17, 0));
-          
-          } else if (bank == 4) {
+
+          } else if (bank == 5) {
             // and some hexatonics
             temp2 = int(map(freq_target2, 0, 700, 24, 0));
           }
-          else if (bank == 5) {
+          else if (bank == 0) {
             // and we keep range smaller for trad modes.
             temp2 = int(map(freq_target2, 0, 700, 20, 0));
           }
@@ -349,7 +348,7 @@ void loop()
         }
         lastPos = freq_target2;
       } else {
-        if (abs(lastPos - freq_target2) > 5) { // NOT sure
+        if (abs(lastPos - freq_target2) > 3) { // NOT sure
           //temp2 = map(freq_target2, 0, 700, 660, 120);
           temp2 = map(freq_target2, 0, 700, 54, 7);
         }
@@ -361,6 +360,39 @@ void loop()
     switch (bank) {
       case 0:
         switch (pb1) {
+          case 0:
+            mode = midier::Mode::Ionian;
+            break;
+          case 1:
+            mode = midier::Mode::Dorian;
+            break;
+          case 2:
+            mode = midier::Mode::Phrygian;
+            break;
+          case 3:
+            mode = midier::Mode::Lydian;
+            break;
+          case 4:
+            mode = midier::Mode::Mixolydian;
+            break;
+          case 5:
+            mode = midier::Mode::Aeolian;
+            break;
+          case 6:
+            mode = midier::Mode::Locrian;
+            break;
+        }
+        makeScale( roots[scaleRoot], mode);
+        temp1 = midi_note_to_frequency(currentMode[temp2]);
+        if (debug) {
+          Serial.print("scaleRoot & degree ");
+          Serial.print((char)roots[scaleRoot]);
+          Serial.print(" " );
+          Serial.println(currentMode[temp2]);
+        }
+        break;
+      case 1:
+        switch (pb2) {
           case 0:
             temp1 = pgm_read_float( &Nahawand[temp2 ]);
             break;
@@ -378,28 +410,6 @@ void loop()
             break;
           case 5:
             temp1 = pgm_read_float( &Bhairav[temp2 ]);
-            break;
-        }
-        break;
-      case 1:
-        switch (pb2) {
-          case 0:
-            temp1 = pgm_read_float( &MajorPentatonic[temp2 ]);
-            break;
-          case 1:
-            temp1 = pgm_read_float( &RomanMinor[temp2 ]);
-            break;
-          case 2:
-            temp1 = pgm_read_float( &NeapolitanMinor[temp2 ]);
-            break;
-          case 3:
-            temp1 = pgm_read_float( &MelodicMinor[temp2 ]);
-            break;
-          case 4:
-            temp1 = pgm_read_float( &Spanish[temp2 ]);
-            break;
-          case 5:
-            temp1 = pgm_read_float( &LydianMinor[temp2 ]);
             break;
         }
         break;
@@ -448,10 +458,41 @@ void loop()
           case 6:
             temp1 = pgm_read_float( &Prometheus[temp2 ]);
             break;
+          case 7:
+            temp1 = pgm_read_float( &Chinese[temp2 ]);
+            break;
+          case 8:
+            temp1 = pgm_read_float( &Gong[temp2 ]);
+            break;
+          case 9:
+            temp1 = pgm_read_float( &Egypt[temp2 ]);
+            break;
         }
         break;
       case 4:
         switch (pb5) {
+          case 0:
+            temp1 = pgm_read_float( &MajorPentatonic[temp2 ]);
+            break;
+          case 1:
+            temp1 = pgm_read_float( &RomanMinor[temp2 ]);
+            break;
+          case 2:
+            temp1 = pgm_read_float( &NeapolitanMinor[temp2 ]);
+            break;
+          case 3:
+            temp1 = pgm_read_float( &MelodicMinor[temp2 ]);
+            break;
+          case 4:
+            temp1 = pgm_read_float( &Spanish[temp2 ]);
+            break;
+          case 5:
+            temp1 = pgm_read_float( &LydianMinor[temp2 ]);
+            break;
+        }
+        break;
+      case 5:
+        switch (pb6) {
           case 0:
             temp1 = pgm_read_float( &HexDorian[temp2 ]);
             break;
@@ -475,40 +516,7 @@ void loop()
             break;
         }
         break;
-      case 5:
-        switch (pb6) {
-          case 0:
-            mode = midier::Mode::Ionian;
-            break;
-          case 1:
-            mode = midier::Mode::Dorian;
-            break;
-          case 2:
-            mode = midier::Mode::Phrygian;
-            break;
-          case 3:
-            mode = midier::Mode::Lydian;
-            break;
-          case 4:
-            mode = midier::Mode::Mixolydian;
-            break;
-          case 5:
-            mode = midier::Mode::Aeolian;
-            break;
-          case 6:
-            mode = midier::Mode::Locrian;
-            break;
-        }
-        makeScale( roots[scaleRoot], mode);
-        temp1 = midi_note_to_frequency(currentMode[temp2]);
-        
-        if (debug) {
-          Serial.print("scaleRoot & degree ");
-          Serial.print((char)roots[scaleRoot]);
-          Serial.print(" " );
-          Serial.println(currentMode[temp2]);
-        }
-        break;
+
 
     }
 
@@ -551,9 +559,9 @@ bool GlideFreq(float from, float too, bool up) {
 
   // send noteoff on new note
   if ( ! debug ) {
-    MIDI.sendNoteOff(frequency_to_midi_note(lastNote), 0, midiChannel);
-    //now send note on
-    MIDI.sendNoteOn(frequency_to_midi_note(too), 127, midiChannel);
+      MIDI.sendNoteOff(frequency_to_midi_note(lastNote), 0, midiChannel);
+      //now send note on
+      MIDI.sendNoteOn(frequency_to_midi_note(too), 127, midiChannel);
   }
   lastNote = too;
 

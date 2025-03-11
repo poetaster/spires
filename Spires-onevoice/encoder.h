@@ -33,7 +33,7 @@ void onEb1LongPress(EncoderButton& eb) {
 */
 void onEb1PressTurn(EncoderButton& eb) {
 
-  if (debug == false ) allOff();
+  if (debug == false ) MIDI.sendNoteOff(frequency_to_midi_note(lastNote), 0, midiChannel);//allOff();
 
   enc_delta = eb.increment();
 
@@ -66,12 +66,12 @@ void onEb1PressTurn(EncoderButton& eb) {
 */
 void onEb1Clicked(EncoderButton& eb) {
 
-  //if ( debug == false )  allOff();
+  if ( debug == false )  MIDI.sendNoteOff(frequency_to_midi_note(lastNote), 0, midiChannel);//allOff();
 
   // set which bank to select formulas from
   int type = eb.clickCount();
 
-  if (bank = 5 ) {
+  if (bank == 0 ) {
     
     scaleRoot += 1;
     if (scaleRoot > 6) scaleRoot = 0;
