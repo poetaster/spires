@@ -334,7 +334,7 @@ void loop()
 
           } else if (bank == 5) {
             // and some hexatonics
-            temp2 = int(map(freq_target2, 0, 700, 24, 0));
+            temp2 = int(map(freq_target2, 0, 700, 23, 0));
           }
           else if (bank == 0) {
             // and we keep range smaller for trad modes.
@@ -385,10 +385,10 @@ void loop()
         makeScale( roots[scaleRoot], mode);
         temp1 = midi_note_to_frequency(currentMode[temp2]);
         if (debug) {
-          Serial.print("scaleRoot & degree ");
-          Serial.print((char)roots[scaleRoot]);
-          Serial.print(" " );
-          Serial.println(currentMode[temp2]);
+          //Serial.print("scaleRoot & degree ");
+          //Serial.print((char)roots[scaleRoot]);
+          //Serial.print(" " );
+          //Serial.println(currentMode[temp2]);
         }
         break;
       case 1:
@@ -595,6 +595,14 @@ bool GlideFreq(float from, float too, bool up) {
 bool GlideContinuous(float from, float too, bool up) {
   //make sure we complete the glides before the loop proceeds
   cont = false;
+    // send noteoff on new note
+  if ( ! debug ) {
+      MIDI.sendNoteOff(frequency_to_midi_note(lastNote), 0, midiChannel);
+      //now send note on
+      MIDI.sendNoteOn(frequency_to_midi_note(too), 127, midiChannel);
+  }
+  lastNote = too;
+  
   if (up) {
     while (from < too) {
       AD[0].setFrequency(from);
