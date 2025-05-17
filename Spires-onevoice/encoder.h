@@ -3,23 +3,27 @@
 */
 void onEb1LongPress(EncoderButton& eb) {
 
-  if ( debug == false) allOff();
-
-  if (sine == true) {
-    AD[0].setWave(AD9833_TRIANGLE);
-    sine = false;
-    analogWrite(led, 255);
-    delay(250);
-    analogWrite(led, 0);
-    delay(250);
+  long ecount = eb.longPressCount();
+  if ( ecount > 1 ) {
+    if (sine == true) {
+      AD[0].setWave(AD9833_TRIANGLE);
+      sine = false;
+      analogWrite(led, 255);
+      delay(250);
+      analogWrite(led, 0);
+      delay(250);
+    } else {
+      AD[0].setWave(AD9833_SINE);
+      sine = true;
+      analogWrite(led, 255);
+      delay(300);
+      analogWrite(led, 0);
+      delay(300);
+    }
   } else {
-    AD[0].setWave(AD9833_SINE);
-    sine = true;
-    analogWrite(led, 255);
-    delay(300);
-    analogWrite(led, 0);
-    delay(300);
+    allOff();
   }
+
 
 
   if (debug) {
@@ -72,10 +76,10 @@ void onEb1Clicked(EncoderButton& eb) {
   int type = eb.clickCount();
 
   if (bank == 0 ) {
-    
+
     scaleRoot += 1;
     if (scaleRoot > 6) scaleRoot = 0;
-    
+
   } else {
     if (type == 1 ) {
       continuous = true;

@@ -104,7 +104,7 @@ float midi_note_to_frequency(uint32_t midi_note) {
 // need to send note offs :)
 void allOff() {
   for (int i = 28; i < 90; i++) {
-    MIDI.sendNoteOff(i, 0, 1);
+    if ( ! debug) MIDI.sendNoteOff(i, 0, 1);
   }
 }
 
@@ -164,7 +164,7 @@ int numBank = 6;
 // we have to slow it down :)
 unsigned long startMillis;
 unsigned long currentMillis;
-const unsigned long period = 95;
+const unsigned long period = 95; // this is the frequency change loop delay
 
 int lastNote;
 
@@ -228,7 +228,7 @@ void setup()
   //while (!Serial) {}
 
   if (debug == false) {
-    MIDI.begin(MIDI_CHANNEL_OFF);//MIDI_CHANNEL_OMNI);
+    MIDI.begin(MIDI_CHANNEL_OMNI);//MIDI_CHANNEL_OMNI);
   }
   if (debug) Serial.begin(115200);
 
@@ -308,7 +308,6 @@ void loop()
 
   float temp1;
   int temp2;
-  currentMillis = millis();
 
   eb1.update(); // respond to encoder/button
 
@@ -385,10 +384,12 @@ void loop()
         makeScale( roots[scaleRoot], mode);
         temp1 = midi_note_to_frequency(currentMode[temp2]);
         if (debug) {
-          //Serial.print("scaleRoot & degree ");
-          //Serial.print((char)roots[scaleRoot]);
-          //Serial.print(" " );
-          //Serial.println(currentMode[temp2]);
+          /*
+          Serial.print("scaleRoot & degree ");
+          Serial.print((char)roots[scaleRoot]);
+          Serial.print(" " );
+          Serial.println(currentMode[temp2]);
+          */
         }
         break;
       case 1:
