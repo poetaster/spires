@@ -22,6 +22,7 @@ void onEb1LongPress(EncoderButton& eb) {
     }
   } else {
     allOff();
+    AD[0].setFrequency(10.00, 0);     //  A
   }
 
 

@@ -108,7 +108,7 @@ void allOff() {
   }
 }
 
-int midiChannel = 1;  // Define which MIDI channel to transmit on (1 to 16).
+int midiChannel = 13;  // Define which MIDI channel to transmit on (1 to 16).
 
 
 /* signal generator setup */
