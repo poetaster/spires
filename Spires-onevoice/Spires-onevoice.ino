@@ -101,14 +101,15 @@ float midi_note_to_frequency(uint32_t midi_note) {
   return powf(2.0f, semitones_away_from_a4 / semitones_per_octave) * a4_frequency;
 }
 
+int midiChannel = 1;  // Define which MIDI channel to transmit on (1 to 16).
+
+
 // need to send note offs :)
 void allOff() {
   for (int i = 28; i < 90; i++) {
-    if ( ! debug) MIDI.sendNoteOff(i, 0, 1);
+    if ( ! debug) MIDI.sendNoteOff(i, 0, midiChannel);
   }
 }
-
-int midiChannel = 13;  // Define which MIDI channel to transmit on (1 to 16).
 
 
 /* signal generator setup */
@@ -385,10 +386,10 @@ void loop()
         temp1 = midi_note_to_frequency(currentMode[temp2]);
         if (debug) {
           /*
-          Serial.print("scaleRoot & degree ");
-          Serial.print((char)roots[scaleRoot]);
-          Serial.print(" " );
-          Serial.println(currentMode[temp2]);
+            Serial.print("scaleRoot & degree ");
+            Serial.print((char)roots[scaleRoot]);
+            Serial.print(" " );
+            Serial.println(currentMode[temp2]);
           */
         }
         break;
@@ -522,29 +523,36 @@ void loop()
     }
 
     // the frequency is used now to glide up or down
+    if (freq_target2  < 700 ) {
+      if ( temp1 < 800  && temp1 > 30 && continuous == false) {
+        if (freq_init1 > temp1) {
+          cont = GlideFreq(freq_init1, temp1, false);
 
-    if ( temp1 < 800  && temp1 > 30 && continuous == false) {
-      if (freq_init1 > temp1) {
-        cont = GlideFreq(freq_init1, temp1, false);
+        } else if (freq_init1 < temp1) {
+          cont = GlideFreq(freq_init1, temp1, true);
+        }
+        freq_init1 = temp1;
+      } else if ( continuous == true ) { //&& abs(freq_init1 - temp2) > 5 ) {
+        temp2 = pgm_read_float( &ContToFreq[temp2 ] ); //ContToFreq
+        if (freq_init1 > temp2) {
+          cont = GlideContinuous(freq_init1, temp2, false);
 
-      } else if (freq_init1 < temp1) {
-        cont = GlideFreq(freq_init1, temp1, true);
+        } else if (freq_init1 < temp2) {
+          cont = GlideContinuous(freq_init1, temp2, true);
+        }
+
+        freq_init1 = temp2;
       }
-      freq_init1 = temp1;
-    } else if ( continuous == true ) { //&& abs(freq_init1 - temp2) > 5 ) {
-      temp2 = pgm_read_float( &ContToFreq[temp2 ] ); //ContToFreq
-      if (freq_init1 > temp2) {
-        cont = GlideContinuous(freq_init1, temp2, false);
+    } else if ( freq_target2 > 850 && freq_target2 < 1300 ) {
+      allOff();
+      AD[0].setFrequency(10);
 
-      } else if (freq_init1 < temp2) {
-        cont = GlideContinuous(freq_init1, temp2, true);
-      }
-
-      freq_init1 = temp2;
     }
+
     while (cont == false) {
       ; //nop
     }
+
     startMillis = currentMillis;  //IMPORTANT to save the start time .
   }
 
@@ -560,9 +568,9 @@ bool GlideFreq(float from, float too, bool up) {
 
   // send noteoff on new note
   if ( ! debug ) {
-      MIDI.sendNoteOff(frequency_to_midi_note(lastNote), 0, midiChannel);
-      //now send note on
-      MIDI.sendNoteOn(frequency_to_midi_note(too), 127, midiChannel);
+    MIDI.sendNoteOff(frequency_to_midi_note(lastNote), 0, midiChannel);
+    //now send note on
+    MIDI.sendNoteOn(frequency_to_midi_note(too), 127, midiChannel);
   }
   lastNote = too;
 
@@ -596,14 +604,14 @@ bool GlideFreq(float from, float too, bool up) {
 bool GlideContinuous(float from, float too, bool up) {
   //make sure we complete the glides before the loop proceeds
   cont = false;
-    // send noteoff on new note
+  // send noteoff on new note
   if ( ! debug ) {
-      MIDI.sendNoteOff(frequency_to_midi_note(lastNote), 0, midiChannel);
-      //now send note on
-      MIDI.sendNoteOn(frequency_to_midi_note(too), 127, midiChannel);
+    MIDI.sendNoteOff(frequency_to_midi_note(lastNote), 0, midiChannel);
+    //now send note on
+    MIDI.sendNoteOn(frequency_to_midi_note(too), 127, midiChannel);
   }
   lastNote = too;
-  
+
   if (up) {
     while (from < too) {
       AD[0].setFrequency(from);

@@ -71,7 +71,7 @@ void onEb1PressTurn(EncoderButton& eb) {
 */
 void onEb1Clicked(EncoderButton& eb) {
 
-  if ( debug == false )  MIDI.sendNoteOff(frequency_to_midi_note(lastNote), 0, midiChannel);//allOff();
+  // if ( debug == false )  MIDI.sendNoteOff(frequency_to_midi_note(lastNote), 0, midiChannel);//allOff();
 
   // set which bank to select formulas from
   int type = eb.clickCount();
