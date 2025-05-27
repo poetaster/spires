@@ -169,6 +169,12 @@ const unsigned long period = 95; // this is the frequency change loop delay
 
 int lastNote;
 
+/* led control vars */
+int ledState = LOW;
+int blinkTotal = 0;
+unsigned long previousMillis ; // = millis();
+int intervalLength = 0; // we have three different delay times, so we switch on typte
+
 #include "encoder.h"
 
 
@@ -299,6 +305,7 @@ void setup()
   // we start in scale mode
   continuous = false;
   startMillis = millis();
+  previousMillis = millis();
   //midi note offs
   //allOff();
 }
@@ -319,6 +326,7 @@ void loop()
 
   currentMillis = millis();
   // slow everything down a bit :)
+  
   if (currentMillis - startMillis >= period)  //test whether the period has elapsed
   {
 
@@ -555,6 +563,22 @@ void loop()
 
     startMillis = currentMillis;  //IMPORTANT to save the start time .
   }
+  if (blinkTotal > 0 && (currentMillis - previousMillis >= intervalLength)) {
+    
+    if (ledState == LOW) {
+      analogWrite(led, 255);
+      ledState = HIGH;
+      blinkTotal--;
+    } else {
+      analogWrite(led, 0);
+      ledState = LOW;
+      blinkTotal--;
+    }
+    previousMillis = currentMillis;
+  }
+
+  // led functions
+
 
 
 

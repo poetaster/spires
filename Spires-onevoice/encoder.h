@@ -8,24 +8,18 @@ void onEb1LongPress(EncoderButton& eb) {
     if (sine == true) {
       AD[0].setWave(AD9833_TRIANGLE);
       sine = false;
-      analogWrite(led, 255);
-      delay(250);
-      analogWrite(led, 0);
-      delay(250);
+      blinkTotal = 2;
+      intervalLength = 300;
     } else {
       AD[0].setWave(AD9833_SINE);
       sine = true;
-      analogWrite(led, 255);
-      delay(300);
-      analogWrite(led, 0);
-      delay(300);
+      blinkTotal = 4;
+      intervalLength = 300;
     }
   } else {
     allOff();
     AD[0].setFrequency(10.00, 0);     //  A
   }
-
-
 
   if (debug) {
     Serial.print("button1 longPressCount: ");
@@ -48,15 +42,9 @@ void onEb1PressTurn(EncoderButton& eb) {
   } else if ( bank < 0 ) {
     bank = numBank - 1;
   }
-  Serial.print("bank: ");
-  Serial.println(bank);
 
-  for (uint8_t i = 0; i <= bank; i++) {
-    analogWrite(led, 255);
-    delay(250);
-    analogWrite(led, 0);
-    delay(230);
-  }
+  blinkTotal = (bank + 1) * 2;
+  intervalLength = 225;
 
   if (debug) {
     Serial.print("eb1 press inc by: ");
@@ -80,24 +68,23 @@ void onEb1Clicked(EncoderButton& eb) {
 
     scaleRoot += 1;
     if (scaleRoot > 6) scaleRoot = 0;
-
+    blinkTotal = 2;
+    intervalLength = 150;
   } else {
     if (type == 1 ) {
       continuous = true;
       cSpeed = 50000;
+      blinkTotal = 2;
+      intervalLength = 100;
     }
     if (type == 2) {
       continuous = false;
       cSpeed = 200000;
+      blinkTotal = 4;
+      intervalLength = 100;
     }
   }
 
-  for (uint8_t i = 0; i < type; i++) {
-    analogWrite(led, 255);
-    delay(75);
-    analogWrite(led, 0);
-    delay(100);
-  }
   if (debug) {
     Serial.print("bank: ");
     Serial.println(eb.clickCount());
@@ -176,12 +163,9 @@ void onEb1Encoder(EncoderButton& eb) {
     prog = pb6;
   }
 
-  for (uint8_t i = 0; i <= prog; i++) {
-    analogWrite(led, 255);
-    delay(180);
-    analogWrite(led, 0);
-    delay(160);
-  }
+
+  blinkTotal = (prog + 1) * 2;
+  intervalLength = 175;
 
   if (debug) {
     Serial.print("eb1 incremented by: ");
