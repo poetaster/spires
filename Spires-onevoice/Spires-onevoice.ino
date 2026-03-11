@@ -114,7 +114,7 @@ void allOff() {
 
 /* signal generator setup */
 
-unsigned int cSpeed = 200000;
+unsigned int cSpeed = 90000;
 //  each device needs its own select pin.
 AD9833 AD[1] =
 {
@@ -165,7 +165,7 @@ int numBank = 6;
 // we have to slow it down :)
 unsigned long startMillis;
 unsigned long currentMillis;
-const unsigned long period = 95; // this is the frequency change loop delay
+const unsigned long period = 2; // this is the frequency change loop delay
 
 int lastNote;
 
@@ -197,8 +197,8 @@ const int TRIANGLE = 0x2002;                // define the waveform when we end w
 const float refFreq = 25000000.0;           // On-board crystal reference frequency
 float freq_init1 = 440.0;                    // Initial frequency for Generator 1
 float freq_init2 = 442.0;                    // Initial frequency for Generator 2
-float freq_target1 = 440.0;                 // Target frequency for Generator 1
-float freq_target2 = 442.0;                 // Target frequency for Generator 2
+long freq_target1 = 440;                 // Target frequency for Generator 1
+long freq_target2 = 442;                 // Target frequency for Generator 2
 float freq_offset = 1; //4 / 3;
 
 // Table with note symbols, used for display
@@ -282,13 +282,16 @@ void setup()
     // Each sensor must have its address changed to a unique value other than
     // the default of 0x29 (except for the last one, which could be left atSerial.println(freq_init1);
     // the default). To make it simple, we'll just count up from 0x2A.
+
     sensors[i].setAddress(0x2A + i);
-    //sensors[i].setSignalRateLimit(0.25);
-    sensors[i].startContinuous(50);
-    sensors[i].setMeasurementTimingBudget(cSpeed); //  adjust this value to move to slower note slurs/jumps
-    // increase laser pulse periods (defaults are 14 and 10 PCLKs) 18/14
-    //sensors[i].setVcselPulsePeriod(VL53L0X::VcselPeriodPreRange, 14);
-    //sensors[i].setVcselPulsePeriod(VL53L0X::VcselPeriodFinalRange, 10);
+    // long range
+    sensors[i].setSignalRateLimit(0.1);
+    sensors[i].setVcselPulsePeriod(VL53L0X::VcselPeriodPreRange, 18);
+    sensors[i].setVcselPulsePeriod(VL53L0X::VcselPeriodFinalRange, 14);
+    // high accuracy
+    sensors[i].setMeasurementTimingBudget(90000);
+    //sensors[i].startContinuous(50);
+    //sensors[i].setMeasurementTimingBudget(cSpeed); //  adjust this value to move to slower note slurs/jumps
 
   }
 
@@ -331,7 +334,8 @@ void loop()
   {
 
     // readRangeContinuousMillimeters
-    freq_target2 = sensors[0].readRangeContinuousMillimeters();
+    //freq_target2 = sensors[0].readRangeContinuousMillimeters();
+    freq_target2 = sensors[0].readRangeSingleMillimeters();
 
     if (freq_target2  < 700 ) {
       if ( ! continuous ) {
@@ -356,6 +360,7 @@ void loop()
         }
         lastPos = freq_target2;
       } else {
+	// continuous play
         if (abs(lastPos - freq_target2) > 3) { // NOT sure
           //temp2 = map(freq_target2, 0, 700, 660, 120);
           temp2 = map(freq_target2, 0, 700, 54, 7);
@@ -363,7 +368,14 @@ void loop()
         lastPos = freq_target2;
 
       }
+    } else if ( freq_target2 > 980 && freq_target2 < 1100 ) {
+    	if (debug) Serial.print(" freq");
+    	if (debug) Serial.println(freq_target2);
+      allOff();
+      AD[0].setFrequency(1);
+
     }
+
     // this is clumsy. it does have the nice advantage of a short view of the scales
     switch (bank) {
       case 0:
@@ -551,15 +563,11 @@ void loop()
 
         freq_init1 = temp2;
       }
-    } else if ( freq_target2 > 850 && freq_target2 < 1300 ) {
-      allOff();
-      AD[0].setFrequency(10);
+    } 
 
-    }
-
-    while (cont == false) {
-      ; //nop
-    }
+    //while (cont == false) {
+    //  ; //nop
+    //}
 
     startMillis = currentMillis;  //IMPORTANT to save the start time .
   }
