@@ -101,12 +101,40 @@ float midi_note_to_frequency(uint32_t midi_note) {
   return powf(2.0f, semitones_away_from_a4 / semitones_per_octave) * a4_frequency;
 }
 
+
+// ------------------------------------------------------------
+// Median filter helpers
+// ------------------------------------------------------------
+// Push new sample into buffer (3 elements circular buffer)
+
+int medianBuf[3] = {0,0,0};
+int medianIdx = 0;
+bool medianFilled = false;
+
+void pushMedian(int v) {
+  medianBuf[medianIdx] = v;
+  medianIdx = (medianIdx + 1) % 3;
+  if (medianIdx == 0) medianFilled = true;
+}
+
+// Compute median of 3 samples (or fallback if not filled yet)
+int getMedian() {
+  if (!medianFilled) return medianBuf[(medianIdx+2)%3];
+  int a = medianBuf[0], b = medianBuf[1], c = medianBuf[2];
+  if (a > b) swap(a,b);
+  if (b > c) swap(b,c);
+  if (a > b) swap(a,b);
+  return b;
+}
+// Swap helper (for median computation)
+void swap(int &x, int &y) { int t=x; x=y; y=t; }
+
 int midiChannel = 1;  // Define which MIDI channel to transmit on (1 to 16).
 
 
 // need to send note offs :)
 void allOff() {
-  for (int i = 28; i < 90; i++) {
+  for (int i = 18; i < 90; i++) {
     if ( ! debug) MIDI.sendNoteOff(i, 0, midiChannel);
   }
 }
@@ -165,7 +193,7 @@ int numBank = 6;
 // we have to slow it down :)
 unsigned long startMillis;
 unsigned long currentMillis;
-const unsigned long period = 2; // this is the frequency change loop delay
+const unsigned long period = 1; // this is the frequency change loop delay
 
 int lastNote;
 
@@ -274,8 +302,8 @@ void setup()
     sensors[i].setTimeout(500);
     if (!sensors[i].init())
     {
-      Serial.print("Failed to detect and initialize sensor ");
-      Serial.println(i);
+      if (debug) Serial.print("Failed to detect and initialize sensor ");
+      if (debug) Serial.println(i);
       while (1);
     }
 
@@ -285,12 +313,12 @@ void setup()
 
     sensors[i].setAddress(0x2A + i);
     // long range
-    sensors[i].setSignalRateLimit(0.1);
-    sensors[i].setVcselPulsePeriod(VL53L0X::VcselPeriodPreRange, 18);
-    sensors[i].setVcselPulsePeriod(VL53L0X::VcselPeriodFinalRange, 14);
     // high accuracy
-    sensors[i].setMeasurementTimingBudget(90000);
-    //sensors[i].startContinuous(50);
+    //sensors[i].setSignalRateLimit(0.2);
+    //sensors[i].setVcselPulsePeriod(VL53L0X::VcselPeriodPreRange, 14);
+    //sensors[i].setVcselPulsePeriod(VL53L0X::VcselPeriodFinalRange, 10);
+    sensors[i].setMeasurementTimingBudget(50000);
+    sensors[i].startContinuous(50);
     //sensors[i].setMeasurementTimingBudget(cSpeed); //  adjust this value to move to slower note slurs/jumps
 
   }
@@ -328,49 +356,60 @@ void loop()
   }
 
   currentMillis = millis();
-  // slow everything down a bit :)
-  
-  if (currentMillis - startMillis >= period)  //test whether the period has elapsed
+
+  // outside timer, fill the buffer of readings
+  //pushMedian(sensors[0].readRangeSingleMillimeters());
+  pushMedian(sensors[0].readRangeContinuousMillimeters());
+
+  //freq_target2 = getMedian(); //sensors[0].readRangeSingleMillimeters();
+
+  // slow readings being applied down a bit :)
+  if (currentMillis - startMillis >= 1)  //test whether the period has elapsed
   {
-
+    //pushMedian(sensors[0].readRangeSingleMillimeters());
+    //pushMedian(sensors[0].readRangeContinuousMillimeters());
     // readRangeContinuousMillimeters
-    //freq_target2 = sensors[0].readRangeContinuousMillimeters();
-    freq_target2 = sensors[0].readRangeSingleMillimeters();
+    //freq_target2 = sensors[0].readRangeSingleMillimeters();
 
-    if (freq_target2  < 700 ) {
+    freq_target2 = getMedian(); //sensors[0].readRangeContinuousMillimeters();
+
+    if (freq_target2  < 510  ) {
+      // scale play
       if ( ! continuous ) {
-        if (abs(lastPos - freq_target2) > 3) { // NOT sure
+        if (abs(lastPos - freq_target2) > 0) { // NOT sure
           if (bank == 3) {
             // we have some pentatanic scales :*)
-            temp2 = int(map(freq_target2, 0, 700, 17, 0));
+            temp2 = int(map(freq_target2, 0, 510, 19, 0));
 
           } else if (bank == 5) {
             // and some hexatonics
-            temp2 = int(map(freq_target2, 0, 700, 23, 0));
+            temp2 = int(map(freq_target2, 0, 510, 23, 0)); // 23
           }
           else if (bank == 0) {
             // and we keep range smaller for trad modes.
-            temp2 = int(map(freq_target2, 0, 700, 20, 0));
+            temp2 = int(map(freq_target2, 0, 510, 21, 0)); // 20
           }
           else {
-            temp2 = int(map(freq_target2, 0, 700, 28, 0));
+            temp2 = int(map(freq_target2, 0, 510, 27, 0)); //28
           }
-
-
         }
-        lastPos = freq_target2;
+      if (debug) Serial.print("note ");
+      if (debug) Serial.println(temp2);
       } else {
-	// continuous play
+
+      // continuous play
         if (abs(lastPos - freq_target2) > 3) { // NOT sure
           //temp2 = map(freq_target2, 0, 700, 660, 120);
-          temp2 = map(freq_target2, 0, 700, 54, 7);
+          temp2 = map(freq_target2, 0, 510, 54, 7);
         }
-        lastPos = freq_target2;
 
       }
-    } else if ( freq_target2 > 980 && freq_target2 < 1100 ) {
-    	if (debug) Serial.print(" freq");
-    	if (debug) Serial.println(freq_target2);
+
+      lastPos = freq_target2;
+
+    } else if ( freq_target2 > 820 && freq_target2 < 920 ) {
+      if (debug) Serial.print("abort ");
+      if (debug) Serial.println(freq_target2);
       allOff();
       AD[0].setFrequency(1);
 
@@ -378,7 +417,7 @@ void loop()
 
     // this is clumsy. it does have the nice advantage of a short view of the scales
     switch (bank) {
-      case 0:
+      case 0
         switch (pb1) {
           case 0:
             mode = midier::Mode::Ionian;
@@ -543,8 +582,8 @@ void loop()
     }
 
     // the frequency is used now to glide up or down
-    if (freq_target2  < 700 ) {
-      if ( temp1 < 800  && temp1 > 30 && continuous == false) {
+    if (freq_target2  < 510 ) {
+      if ( temp1 < 510  && temp1 > 30 && continuous == false) {
         if (freq_init1 > temp1) {
           cont = GlideFreq(freq_init1, temp1, false);
 
